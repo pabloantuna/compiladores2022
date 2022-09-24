@@ -1,5 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE RecordWildCards #-}
+
 {-|
 Module      : Bytecompile
 Description : Compila a bytecode. Ejecuta bytecode.
@@ -16,7 +16,6 @@ module Bytecompile
  where
 
 import Lang
-import Subst
 import MonadFD4
 
 import qualified Data.ByteString.Lazy as BS
@@ -26,11 +25,17 @@ import Data.Binary.Get ( getWord32le, isEmpty )
 
 import Data.List (intercalate)
 import Data.Char
+import Eval (semOp)
+import Common (Pos(NoPos))
+import Subst (close)
 
 type Opcode = Int
 type Bytecode = [Int]
 
 newtype Bytecode32 = BC { un32 :: [Word32] }
+
+data Val = I Int | Fun Env Bytecode | RA Env Bytecode
+type Env = [Val]
 
 {- Esta instancia explica como codificar y decodificar Bytecode de 32 bits -}
 instance Binary Bytecode32 where
@@ -100,7 +105,39 @@ showBC :: Bytecode -> String
 showBC = intercalate "; " . showOps
 
 bcc :: MonadFD4 m => TTerm -> m Bytecode
-bcc t = failFD4 "implementame!"
+bcc (V _ (Bound n)) = return [ACCESS, n]
+bcc (V (p, _) (Free s)) = failPosFD4 p "Se encontró una variable libre compilando a bytecode"
+bcc (V (p, _) (Global s)) = do
+  d <- lookupDecl s
+  case d of
+    Nothing -> failPosFD4 p $ "No existe la variable global " ++ show s
+    Just tm -> bcc tm
+bcc (Const _ (CNat c)) = return [CONST, c]
+bcc (Lam _ _ _ (Sc1 t)) = do
+  bt <- bcc t
+  return $ [FUNCTION, length bt + 1] ++ bt ++ [RETURN]
+bcc (App _ t t') = do
+  bt <- bcc t
+  bt' <- bcc t'
+  return $ bt ++ bt' ++ [CALL]
+bcc (Print _ s t) = do
+  bt <- bcc t
+  return $ [PRINT] ++ string2bc s ++ [NULL] ++ bt ++ [PRINTN]
+bcc (BinaryOp _ Add t t') = (\x y -> x ++ y ++ [ADD]) <$> bcc t <*> bcc t'
+bcc (BinaryOp _ Sub t t') = (\x y -> x ++ y ++ [SUB]) <$> bcc t <*> bcc t'
+bcc (Fix _ _ _ _ _ (Sc2 t)) = do
+  bt <- bcc t
+  return $ [FIX, length bt + 1] ++ bt ++ [RETURN]
+bcc (IfZ _ cond thenT elseT) = do
+  bcond <- bcc cond
+  bthen <- bcc thenT
+  belse <- bcc elseT
+  -- La idea es que JUMP saque lo que está en la pila, y si es distinto de 0 entonces salta tantas posiciones como lo dice en el proximo byte
+  return $ bcond ++ [JUMP, length bthen + 4] ++ bthen ++ [CONST, 1, JUMP, length belse] ++ belse
+bcc (Let _ _ _ def (Sc1 body)) = do
+  bdef <- bcc def
+  bbody <- bcc body
+  return $ bdef ++ [SHIFT] ++ bbody ++ [DROP]
 
 -- ord/chr devuelven los codepoints unicode, o en otras palabras
 -- la codificación UTF-32 del caracter.
@@ -111,7 +148,13 @@ bc2string :: Bytecode -> String
 bc2string = map chr
 
 bytecompileModule :: MonadFD4 m => Module -> m Bytecode
-bytecompileModule m = failFD4 "implementame!"
+bytecompileModule m = do
+  t <- bcc $ toLets m
+  return $ t ++ [STOP]
+
+toLets :: Module -> TTerm
+toLets [] = Const (NoPos, NatTy Nothing) (CNat 0)
+toLets ((Decl p s ty t) : des) = Let (p, getTy t) s ty t (close s $ toLets des)
 
 -- | Toma un bytecode, lo codifica y lo escribe un archivo
 bcWrite :: Bytecode -> FilePath -> IO ()
@@ -126,4 +169,25 @@ bcRead :: FilePath -> IO Bytecode
 bcRead filename = (map fromIntegral <$> un32) . decode <$> BS.readFile filename
 
 runBC :: MonadFD4 m => Bytecode -> m ()
-runBC bc = failFD4 "implementame!"
+runBC = runBC' [] []
+
+runBC' :: MonadFD4 m => [Val] -> Env -> Bytecode -> m ()
+runBC' s e [] = failFD4 "Che no tengo nada para correr capo"
+runBC' (v : RA e c : s) _ (RETURN:xs) = runBC' (v : s) e c
+runBC' s e (CONST:i:xs) = runBC' (I i : s) e xs
+runBC' s e (ACCESS:i:xs) = runBC' ((e !! i) : s) e xs
+runBC' s e (FUNCTION:i:xs) = runBC' (Fun e (take i xs) : s) e (drop i xs)
+runBC' (v : Fun ef cf : s) e (CALL:xs) = runBC' (RA e xs : s) (v : ef) cf
+runBC' s e (ADD:y:x:xs) = runBC' (I (semOp Add x y) : s) e xs
+runBC' s e (SUB:y:x:xs) = runBC' (I (semOp Sub x y) : s) e xs
+runBC' s e (FIX:i:xs) = runBC' (Fun efix (take i xs) : s) e (drop i xs)
+  where efix = Fun efix (take i xs) : e
+runBC' s e (STOP:xs) = return ()
+runBC' (I n : s) e (JUMP:i:xs) -- Jump es un JNZ
+ | n == 0 = runBC' s e xs
+ | otherwise = runBC' s e (drop i xs)
+runBC' (v : s) e (SHIFT:xs) = runBC' s (v : e) xs
+runBC' s (v : e) (DROP:xs) = runBC' s e xs
+runBC' s e (PRINT:xs) = let (str, _:rest) = span (/= NULL) xs in printFD4 (bc2string str) >> runBC' s e rest
+runBC' (I n : s) e (PRINTN:xs) = printFD4 (show n) >> runBC' s e xs
+runBC' s e (x:xs) = failFD4 "Amigo qué es esta bosta que me mandaste"
