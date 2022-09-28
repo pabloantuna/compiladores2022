@@ -147,9 +147,13 @@ string2bc = map ord
 bc2string :: Bytecode -> String
 bc2string = map chr
 
+global2Free :: Var -> Var
+global2Free (Global s) = Free s
+global2Free x = x
+
 bytecompileModule :: MonadFD4 m => Module -> m Bytecode
 bytecompileModule m = do
-  t <- bcc $ toLets m
+  t <- bcc $ toLets $ map (fmap $ fmap global2Free) m
   return $ t ++ [STOP]
 
 toLets :: Module -> TTerm
@@ -172,22 +176,22 @@ runBC :: MonadFD4 m => Bytecode -> m ()
 runBC = runBC' [] []
 
 runBC' :: MonadFD4 m => [Val] -> Env -> Bytecode -> m ()
-runBC' s e [] = failFD4 "Che no tengo nada para correr capo"
+runBC' s e [] = failFD4 "Che maestro el bytecode me lo mandas por encomienda o que onda?"
 runBC' (v : RA e c : s) _ (RETURN:xs) = runBC' (v : s) e c
 runBC' s e (CONST:i:xs) = runBC' (I i : s) e xs
 runBC' s e (ACCESS:i:xs) = runBC' ((e !! i) : s) e xs
 runBC' s e (FUNCTION:i:xs) = runBC' (Fun e (take i xs) : s) e (drop i xs)
 runBC' (v : Fun ef cf : s) e (CALL:xs) = runBC' (RA e xs : s) (v : ef) cf
-runBC' s e (ADD:y:x:xs) = runBC' (I (semOp Add x y) : s) e xs
-runBC' s e (SUB:y:x:xs) = runBC' (I (semOp Sub x y) : s) e xs
+runBC' (I y : I x : s) e (ADD:xs) = runBC' (I (semOp Add x y) : s) e xs
+runBC' (I y : I x : s) e (SUB:xs) = runBC' (I (semOp Sub x y) : s) e xs
 runBC' s e (FIX:i:xs) = runBC' (Fun efix (take i xs) : s) e (drop i xs)
   where efix = Fun efix (take i xs) : e
-runBC' s e (STOP:xs) = return ()
+runBC' s e (STOP:xs) = printFD4 "The End"
 runBC' (I n : s) e (JUMP:i:xs) -- Jump es un JNZ
  | n == 0 = runBC' s e xs
  | otherwise = runBC' s e (drop i xs)
 runBC' (v : s) e (SHIFT:xs) = runBC' s (v : e) xs
 runBC' s (v : e) (DROP:xs) = runBC' s e xs
 runBC' s e (PRINT:xs) = let (str, _:rest) = span (/= NULL) xs in printFD4 (bc2string str) >> runBC' s e rest
-runBC' (I n : s) e (PRINTN:xs) = printFD4 (show n) >> runBC' s e xs
-runBC' s e (x:xs) = failFD4 "Amigo qué es esta bosta que me mandaste"
+runBC' s@(I n : _) e (PRINTN:xs) = printFD4 (show n) >> runBC' s e xs
+runBC' s e (x:xs) = failFD4 "Amigo qué me mandaste"

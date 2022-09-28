@@ -21,3 +21,4 @@ compiladores.cabal
 a.out
 
 tags
+*.bc
