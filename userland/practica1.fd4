@@ -14,6 +14,8 @@ let suma (x : Nat) (y : Nat) : Nat = print "soy el suma *musica*:" (x + y)
 
 let mi : Nat = suma 3 4
 
+let mimi : Nat = print "y ahora *redoble de tambores*:" (mcd 15 20)
+
 let rec sumaR (x : Nat) (y : Nat) : Nat = x + y
 
 let rec sumaR2 (x : Nat) (y : Nat) : Nat =
@@ -30,13 +32,21 @@ let suma_x (x:Nat) : Nat -> FNat =
 let fsuma_x (x:Nat) : Nat -> Nat -> FNat =
   fun (y z p:Nat) -> x+y
 
+let rec ack (m n : Nat) : Nat = ifz m then n + 1 else (ifz n then ack (m - 1) 1 else ack (m - 1) (ack m (n - 1))) 
+
+let satan : Nat = print "desde el mismisimo inframundo: " (ack 3 11)
 
 {-
 lasdjflasdljfajlsdf
 ';'';;;;';p[p09876543wsdfghj,./xcvbzxcbz]cvb
 z;xvbzzxvc
 ;lf33--|¿>
-
+ඞඞඞඞ
+ඞඞඞඞ
+ඞඞඞඞ
+ඞඞඞඞ
+ඞඞඞඞ
+ඞඞඞඞ
 (FunSTy pos (NatSTy pos) (FunSTy pos (NatSTy pos) (NatSTy pos)))
 
 -}
