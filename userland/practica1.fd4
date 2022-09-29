@@ -1,5 +1,5 @@
 type Jorge = Nat -> Nat -> Nat
-let gggg : Jorge = fix (f : Jorge) (n : Nat) (m : Nat) -> ifz n then m else (ifz m then n else (ifz (n - m) then (f (m - n) n) else (f m (n - m))))
+let gcd : Jorge = fix (f : Jorge) (n : Nat) (m : Nat) -> ifz n then m else (ifz m then n else (ifz (n - m) then (f (m - n) n) else (f m (n - m))))
 
 let mini : (Nat -> Nat) -> Nat = fun (f: Nat -> Nat) -> (fix (mini : Nat -> Nat) (n : Nat) -> ifz (print "soy un ifz: " (f n)) then n else mini (n + 1)) 0
 
@@ -14,7 +14,7 @@ let suma (x : Nat) (y : Nat) : Nat = print "soy el suma *musica*:" (x + y)
 
 let mi : Nat = suma 3 4
 
-let mimi : Nat = print "y ahora *redoble de tambores*:" (mcd 15 20)
+let mimi : Nat = print "y ahora *redoble de tambores*:" (gcd 15 20)
 
 let rec sumaR (x : Nat) (y : Nat) : Nat = x + y
 
