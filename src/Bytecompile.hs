@@ -19,36 +19,22 @@ import Lang
 import MonadFD4
 
 import qualified Data.ByteString.Lazy as BS
-import Data.Binary ( Word32, Binary(put, get), decode, encode )
+import Data.Binary ( Word32, Binary(put, get), decode, encode, Word8, putWord8, getWord8 )
 import Data.Binary.Put ( putWord32le )
-import Data.Binary.Get ( getWord32le, isEmpty )
+import Data.Binary.Get ( getWord32le, isEmpty, getLazyByteStringNul )
 
-import Data.List (intercalate)
+import Data.List (intercalate, unfoldr)
 import Data.Char
 import Eval (semOp)
 import Common (Pos(NoPos))
 import Subst (close)
+import Data.Bits (shiftR, Bits (shiftL, (.|.)))
 
-type Opcode = Int
-type Bytecode = [Int]
-
-newtype Bytecode32 = BC { un32 :: [Word32] }
+type Opcode = Word8
+type Bytecode = [Word8]
 
 data Val = I Int | Fun Env Bytecode | RA Env Bytecode
 type Env = [Val]
-
-{- Esta instancia explica como codificar y decodificar Bytecode de 32 bits -}
-instance Binary Bytecode32 where
-  put (BC bs) = mapM_ putWord32le bs
-  get = go
-    where go =
-           do
-            empty <- isEmpty
-            if empty
-              then return $ BC []
-              else do x <- getWord32le
-                      BC xs <- go
-                      return $ BC (x:xs)
 
 {- Estos sinónimos de patrón nos permiten escribir y hacer
 pattern-matching sobre el nombre de la operación en lugar del código
@@ -105,14 +91,14 @@ showBC :: Bytecode -> String
 showBC = intercalate "; " . showOps
 
 bcc :: MonadFD4 m => TTerm -> m Bytecode
-bcc (V _ (Bound n)) = return [ACCESS, n]
+bcc (V _ (Bound n)) = return $ ACCESS : int2bc n
 bcc (V (p, _) (Free s)) = failPosFD4 p "Se encontró una variable libre compilando a bytecode"
 bcc (V (p, _) (Global s)) = do
   d <- lookupDecl s
   case d of
     Nothing -> failPosFD4 p $ "No existe la variable global " ++ show s
     Just tm -> bcc tm
-bcc (Const _ (CNat c)) = return [CONST, c]
+bcc (Const _ (CNat c)) = return $ CONST : int2bc c
 bcc (Lam _ _ _ (Sc1 t)) = do
   bt <- bcc t
   return $ [FUNCTION, length bt + 1] ++ bt ++ [RETURN]
@@ -139,6 +125,17 @@ bcc (Let _ _ _ def (Sc1 body)) = do
   bbody <- bcc body
   return $ bdef ++ [SHIFT] ++ bbody ++ [DROP]
 
+int2bc :: Int -> Bytecode
+int2bc = unfoldr step
+  where
+    step 0 = Nothing
+    step i = Just (fromIntegral i, i `shiftR` 8)
+
+bc2int :: Bytecode -> Int
+bc2int = foldr unstep 0
+  where
+    unstep b a = a `shiftL` 8 .|. fromIntegral b
+
 -- ord/chr devuelven los codepoints unicode, o en otras palabras
 -- la codificación UTF-32 del caracter.
 string2bc :: String -> Bytecode
@@ -162,7 +159,7 @@ toLets ((Decl p s ty t) : des) = Let (p, getTy t) s ty t (close s $ toLets des)
 
 -- | Toma un bytecode, lo codifica y lo escribe un archivo
 bcWrite :: Bytecode -> FilePath -> IO ()
-bcWrite bs filename = BS.writeFile filename (encode $ BC $ fromIntegral <$> bs)
+bcWrite bs filename = BS.writeFile filename (encode $ fromIntegral <$> bs)
 
 ---------------------------
 -- * Ejecución de bytecode
@@ -170,7 +167,7 @@ bcWrite bs filename = BS.writeFile filename (encode $ BC $ fromIntegral <$> bs)
 
 -- | Lee de un archivo y lo decodifica a bytecode
 bcRead :: FilePath -> IO Bytecode
-bcRead filename = (map fromIntegral <$> un32) . decode <$> BS.readFile filename
+bcRead filename = (map fromIntegral <$> id) . decode <$> BS.readFile filename
 
 runBC :: MonadFD4 m => Bytecode -> m ()
 runBC = runBC' [] []
