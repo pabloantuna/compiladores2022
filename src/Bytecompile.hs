@@ -84,15 +84,15 @@ showOps :: Bytecode -> [String]
 showOps [] = []
 showOps (NULL:xs)        = "NULL" : showOps xs
 showOps (RETURN:xs)      = "RETURN" : showOps xs
-showOps (CONST:i:xs)     = ("CONST " ++  show i) : showOps xs
-showOps (ACCESS:i:xs)    = "ACCESS" : show i : showOps xs
-showOps (FUNCTION:i:xs)  = "FUNCTION" : show i : showOps xs
+showOps (CONST:i1:i2:i3:i4:xs)     = ("CONST " ++  show (bc2int [i1,i2,i3,i4])) : showOps xs
+showOps (ACCESS:i1:i2:i3:i4:xs)    = "ACCESS" : show (bc2int [i1,i2,i3,i4]) : showOps xs
+showOps (FUNCTION:i1:i2:i3:i4:xs)  = "FUNCTION" : show (bc2int [i1,i2,i3,i4]) : showOps xs
 showOps (CALL:xs)        = "CALL" : showOps xs
 showOps (ADD:xs)         = "ADD" : showOps xs
 showOps (SUB:xs)         = "SUB" : showOps xs
 showOps (FIX:xs)         = "FIX" : showOps xs
 showOps (STOP:xs)        = "STOP" : showOps xs
-showOps (JUMP:i:xs)      = "JUMP" : show i: showOps xs
+showOps (JUMP:i1:i2:i3:i4:xs)      = "JUMP" : show (bc2int [i1,i2,i3,i4]): showOps xs
 showOps (SHIFT:xs)       = "SHIFT" : showOps xs
 showOps (DROP:xs)        = "DROP" : showOps xs
 showOps (PRINT:xs)       = let (msg,_:rest) = span (/=NULL) xs
@@ -139,8 +139,13 @@ bcc (Let _ _ _ def (Sc1 body)) = do
   bbody <- bcc body
   return $ bdef ++ [SHIFT] ++ bbody ++ [DROP]
 
+fillWith0 :: Bytecode -> Bytecode
+fillWith0 b@[_, _, _, _] = b
+fillWith0 b@(x:xs) = fillWith0 (b++[0])
+fillWith0 [] = [0,0,0,0]
+
 int2bc :: Int -> Bytecode
-int2bc = unfoldr step
+int2bc n = fillWith0 $ unfoldr step n
   where
     step 0 = Nothing
     step i = Just (fromIntegral i, i `shiftR` 8)
@@ -150,6 +155,9 @@ bc2int = foldr unstep 0
   where
     unstep b a = a `shiftL` 8 .|. fromIntegral b
 
+
+-- string2bc y bc2string hay que hacerlas bien xd
+
 -- ord/chr devuelven los codepoints unicode, o en otras palabras
 -- la codificación UTF-32 del caracter.
 string2bc :: String -> Bytecode
@@ -158,7 +166,7 @@ string2bc = concatMap (int2bc . ord)
 bc2string :: Bytecode -> String
 bc2string [] = []
 bc2string (i1:i2:i3:i4:xs) = chr (bc2int [i1, i2, i3, i4]) : bc2string xs
-bc2string _ = error "no es por aca amigo"
+bc2string xs = error ("no es por aca amigo" ++ show xs)
 
 global2Free :: Var -> Var
 global2Free (Global s) = Free s
