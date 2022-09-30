@@ -19,16 +19,15 @@ import Lang
 import MonadFD4
 
 import qualified Data.ByteString.Lazy as BS
-import Data.Binary ( Word32, Binary(put, get), decode, encode, Word8, putWord8, getWord8 )
-import Data.Binary.Put ( putWord32le )
-import Data.Binary.Get ( getWord32le, isEmpty, getLazyByteStringNul )
+import Data.Binary ( Binary(put, get), decode, encode, Word8, putWord8, getWord8 )
+import Data.Binary.Get ( isEmpty)
 
 import Data.List (intercalate, unfoldr)
 import Data.Char
 import Eval (semOp)
 import Common (Pos(NoPos))
 import Subst (close)
-import Data.Bits (shiftR, Bits (shiftL, (.|.)))
+import Data.Bits (shiftR, Bits (..), (.&.))
 
 type Opcode = Word8
 type Bytecode = [Word8]
@@ -133,7 +132,7 @@ bcc (IfZ _ cond thenT elseT) = do
   bthen <- bcc thenT
   belse <- bcc elseT
   -- La idea es que JUMP saque lo que está en la pila, y si es distinto de 0 entonces salta tantas posiciones como lo dice en el proximo byte
-  return $ bcond ++ (JUMP : int2bc (length bthen + 4)) ++ bthen ++ (CONST:int2bc 1) ++ (JUMP : int2bc (length belse)) ++ belse
+  return $ bcond ++ (JUMP : int2bc (length bthen + 10)) ++ bthen ++ (CONST:int2bc 1) ++ (JUMP : int2bc (length belse)) ++ belse
 bcc (Let _ _ _ def (Sc1 body)) = do
   bdef <- bcc def
   bbody <- bcc body
@@ -161,12 +160,22 @@ bc2int = foldr unstep 0
 -- ord/chr devuelven los codepoints unicode, o en otras palabras
 -- la codificación UTF-32 del caracter.
 string2bc :: String -> Bytecode
-string2bc = concatMap (int2bc . ord)
+string2bc = concatMap (toUTF8 . ord)
+
+toUTF8 :: Int -> [Word8]
+toUTF8 n
+ | n < 0x7F = [fromIntegral n]
+ | n < 0x7FF = [0xC0 .|. (fromIntegral (n `shiftR` 6) .&. 0x1F), 0x80 .|. (fromIntegral n .&. 0x3F)]
+ | n < 0xFFFF = [0xE0 .|. (fromIntegral (n `shiftR` 12) .&. 0x0F), 0x80 .|. (fromIntegral (n `shiftR` 6) .&. 0x3F), 0x80 .|. (fromIntegral n .&. 0x3F)]
+ | otherwise = [0xF0 .|. (fromIntegral (n `shiftR` 18) .&. 0x07), 0x80 .|. (fromIntegral (n `shiftR` 12) .&. 0x3F), 0x80 .|. (fromIntegral (n `shiftR` 6) .&. 0x3F), 0x80 .|. (fromIntegral n .&. 0x3F)]
 
 bc2string :: Bytecode -> String
+bc2string (x:xs)
+ | testBit x 7 && testBit x 6 && not (testBit x 5) = let b2:bs = xs in chr ((fromIntegral (x .&. 0x1F) `shiftL` 6) .|. fromIntegral (b2 .&. 0x3F)) : bc2string bs
+ | testBit x 7 && testBit x 6 && testBit x 5 && not (testBit x 4) = let b2:b3:bs = xs in chr (((fromIntegral (x .&. 0x0F) `shiftL` 12) .|. fromIntegral (b2 .&. 0x3F) `shiftL` 6) .|. fromIntegral (b3 .&. 0x3F)) : bc2string bs
+ | testBit x 7 && testBit x 6 && testBit x 5 && testBit x 4 && not (testBit x 3) = let b2:b3:b4:bs = xs in chr (fromIntegral (x .&. 0x07) `shiftL` 18 .|. fromIntegral (b2 .&. 0x3F) `shiftL` 12 .|. fromIntegral (b3 .&. 0x3F) `shiftL` 6 .|. fromIntegral (b3 .&. 0x3F)) : bc2string bs
+ | otherwise = chr (fromIntegral x) : bc2string xs
 bc2string [] = []
-bc2string (i1:i2:i3:i4:xs) = chr (bc2int [i1, i2, i3, i4]) : bc2string xs
-bc2string xs = error ("no es por aca amigo" ++ show xs)
 
 global2Free :: Var -> Var
 global2Free (Global s) = Free s

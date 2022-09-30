@@ -34,7 +34,7 @@ let fsuma_x (x:Nat) : Nat -> Nat -> FNat =
 
 let rec ack (m n : Nat) : Nat = ifz m then n + 1 else (ifz n then ack (m - 1) 1 else ack (m - 1) (ack m (n - 1))) 
 
-let satan : Nat = print "desde el mismisimo inframundo: ඞ" (ack 3 11)
+let satan : Nat = print "desde el mismisimo inframundo: ඞ aaaa" (ack 3 4)
 
 # Un test que pusieron en zulip (parece funcar)
 # let x : Nat = print "x = " 1
