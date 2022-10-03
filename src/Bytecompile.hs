@@ -76,7 +76,8 @@ pattern SHIFT    = 11
 pattern DROP     = 12
 pattern PRINT    = 13
 pattern PRINTN   = 14
-pattern JUMP     = 15
+pattern CJUMP    = 15
+pattern TAILCALL = 16
 
 --función util para debugging: muestra el Bytecode de forma más legible.
 showOps :: Bytecode -> [String]
@@ -91,13 +92,14 @@ showOps (ADD:xs)         = "ADD" : showOps xs
 showOps (SUB:xs)         = "SUB" : showOps xs
 showOps (FIX:xs)         = "FIX" : showOps xs
 showOps (STOP:xs)        = "STOP" : showOps xs
-showOps (JUMP:i1:i2:i3:i4:xs)      = "JUMP" : show (bc2int [i1,i2,i3,i4]): showOps xs
+showOps (CJUMP:i1:i2:i3:i4:xs)      = "CJUMP" : show (bc2int [i1,i2,i3,i4]): showOps xs
 showOps (SHIFT:xs)       = "SHIFT" : showOps xs
 showOps (DROP:xs)        = "DROP" : showOps xs
 showOps (PRINT:xs)       = let (msg,_:rest) = span (/=NULL) xs
                            in ("PRINT " ++ show (bc2string msg)) : showOps xs
 showOps (PRINTN:xs)      = "PRINTN" : showOps xs
 showOps (ADD:xs)         = "ADD" : showOps xs
+showOps (TAILCALL:xs)    = "TAILCALL" : showOps xs
 showOps (x:xs)           = show x : showOps xs
 
 showBC :: Bytecode -> String
@@ -113,8 +115,8 @@ bcc (V (p, _) (Global s)) = do
     Just tm -> bcc tm
 bcc (Const _ (CNat c)) = return $ CONST : int2bc c
 bcc (Lam _ _ _ (Sc1 t)) = do
-  bt <- bcc t
-  return $ (FUNCTION : int2bc (length bt + 1)) ++ bt ++ [RETURN]
+  bt <- bccT t
+  return $ (FUNCTION : int2bc (length bt)) ++ bt
 bcc (App _ t t') = do
   bt <- bcc t
   bt' <- bcc t'
@@ -125,18 +127,37 @@ bcc (Print _ s t) = do
 bcc (BinaryOp _ Add t t') = (\x y -> x ++ y ++ [ADD]) <$> bcc t <*> bcc t'
 bcc (BinaryOp _ Sub t t') = (\x y -> x ++ y ++ [SUB]) <$> bcc t <*> bcc t'
 bcc (Fix _ _ _ _ _ (Sc2 t)) = do
-  bt <- bcc t
-  return $ (FIX : int2bc (length bt + 1)) ++ bt ++ [RETURN]
+  bt <- bccT t
+  return $ (FIX : int2bc (length bt)) ++ bt
 bcc (IfZ _ cond thenT elseT) = do
   bcond <- bcc cond
   bthen <- bcc thenT
   belse <- bcc elseT
-  -- La idea es que JUMP saque lo que está en la pila, y si es distinto de 0 entonces salta tantas posiciones como lo dice en el proximo byte
-  return $ bcond ++ (JUMP : int2bc (length bthen + 10)) ++ bthen ++ (CONST:int2bc 1) ++ (JUMP : int2bc (length belse)) ++ belse
+  -- La idea es que CJUMP saque lo que está en la pila, y si es distinto de 0 entonces salta tantas posiciones como lo dice en el proximo byte
+  return $ bcond ++ (CJUMP : int2bc (length bthen + 10)) ++ bthen ++ (CONST:int2bc 1) ++ (CJUMP : int2bc (length belse)) ++ belse
 bcc (Let _ _ _ def (Sc1 body)) = do
   bdef <- bcc def
   bbody <- bcc body
   return $ bdef ++ [SHIFT] ++ bbody ++ [DROP]
+
+bccT :: MonadFD4 m => TTerm -> m Bytecode
+bccT (App _ t t') = do
+  bt <- bcc t
+  bt' <- bcc t'
+  return $ bt ++ bt' ++ [TAILCALL]
+bccT (IfZ _ cond thenT elseT) = do
+  bcond <- bcc cond
+  bthen <- bccT thenT
+  belse <- bccT elseT
+  -- La idea es que CJUMP saque lo que está en la pila, y si es distinto de 0 entonces salta tantas posiciones como lo dice en el proximo byte
+  return $ bcond ++ (CJUMP : int2bc (length bthen + 10)) ++ bthen ++ (CONST:int2bc 1) ++ (CJUMP : int2bc (length belse)) ++ belse
+bccT (Let _ _ _ def (Sc1 body)) = do
+  bdef <- bcc def
+  bbody <- bccT body
+  return $ bdef ++ [SHIFT] ++ bbody
+bccT t = do
+  bt <- bcc t
+  return $ bt ++ [RETURN]
 
 fillWith0 :: Bytecode -> Bytecode
 fillWith0 b@[_, _, _, _] = b
@@ -217,11 +238,12 @@ runBC' (I y : I x : s) e (SUB:xs) = runBC' (I (semOp Sub x y) : s) e xs
 runBC' s e (FIX:i1:i2:i3:i4:xs) = runBC' (Fun efix (take (bc2int [i1, i2, i3, i4]) xs) : s) e (drop (bc2int [i1, i2, i3, i4]) xs)
   where efix = Fun efix (take (bc2int [i1, i2, i3, i4]) xs) : e
 runBC' s e (STOP:xs) = printFD4 "The End"
-runBC' (I n : s) e (JUMP:i1:i2:i3:i4:xs) -- Jump es un JNZ
+runBC' (I n : s) e (CJUMP:i1:i2:i3:i4:xs) -- CJump es un JNZ
  | n == 0 = runBC' s e xs
  | otherwise = runBC' s e (drop (bc2int [i1, i2, i3, i4]) xs)
 runBC' (v : s) e (SHIFT:xs) = runBC' s (v : e) xs
 runBC' s (v : e) (DROP:xs) = runBC' s e xs
 runBC' s e (PRINT:xs) = let (str, _:rest) = span (/= NULL) xs in printFD4 (bc2string str) >> runBC' s e rest
 runBC' s@(I n : _) e (PRINTN:xs) = printFD4 (show n) >> runBC' s e xs
+runBC' (v : Fun ef cf : s) e (TAILCALL:xs) = runBC' s (v : ef) cf
 runBC' s e (x:xs) = failFD4 "Amigo qué me mandaste"
