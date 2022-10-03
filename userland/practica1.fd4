@@ -41,6 +41,18 @@ let satan : Nat = print "desde el mismisimo inframundo: ඞ aaaa" (ack 3 4)
 # let y : Nat = print "y = " (x + x)
 # let z : Nat = print "z = " (x + y)
 
+let satan : Nat = print "desde el mismisimo inframundo: ඞ aaaa" (ack 3 1)
+
+# let pupu (x:Nat) : Nat = ifz x then print "uno! " 1 else print "dos! " 2
+
+# let popo : Nat = print "uno! " (print "dos! " 3)
+
+# let rec pipi (x : Nat) : Nat = print "hola" (pipi x)
+
+# let satan2 : Nat = print "jojo: " (pupu 3)
+
+# let satan3 : Nat = pipi 420
+
 {-
 lasdjflasdljfajlsdf
 ';'';;;;';p[p09876543wsdfghj,./xcvbzxcbz]cvb
