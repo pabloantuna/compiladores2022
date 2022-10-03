@@ -121,7 +121,7 @@ bcc (App _ t t') = do
   return $ bt ++ bt' ++ [CALL]
 bcc (Print _ s t) = do
   bt <- bcc t
-  return $ [PRINT] ++ string2bc s ++ [NULL] ++ bt ++ [PRINTN]
+  return $ bt ++ [PRINT] ++ string2bc s ++ [NULL] ++ [PRINTN]
 bcc (BinaryOp _ Add t t') = (\x y -> x ++ y ++ [ADD]) <$> bcc t <*> bcc t'
 bcc (BinaryOp _ Sub t t') = (\x y -> x ++ y ++ [SUB]) <$> bcc t <*> bcc t'
 bcc (Fix _ _ _ _ _ (Sc2 t)) = do
