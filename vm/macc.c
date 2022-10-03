@@ -19,7 +19,7 @@
 STATIC_ASSERT(sizeof (int) >= sizeof (uint32_t));
 
 /* Habilitar impresión de traza? */
-#define TRACE 0
+#define TRACE 1
 
 enum {
 	RETURN   = 1,
@@ -29,7 +29,7 @@ enum {
 	CALL     = 5,
 	ADD      = 6,
 	SUB      = 7,
-	JUMP     = 8,
+	JUMP     = 8, // jijiji no
 	FIX      = 9,
 	STOP     = 10,
 	SHIFT    = 11,
@@ -55,7 +55,7 @@ enum {
  * recorre opcode a opcode operando en la stack. Las más interesantes
  * involucran saltos y la construcción de clausuras.
  */
-typedef uint32_t *code;
+typedef uint8_t *code;
 
 /*
  * Un entorno es una lista enlazada de valores. Representan los valores
@@ -116,6 +116,14 @@ static int env_len(env e)
 		rc++;
 	}
 	return rc;
+}
+
+uint32_t leer32(uint8_t *bytes) {
+	uint32_t v;
+	for (int i = 0; i < 4; i++) {
+		v |= (*bytes++) << 8 * i;
+	}
+	return v;
 }
 
 void run(code init_c)
@@ -194,13 +202,19 @@ void run(code init_c)
 		/* Consumimos un opcode y lo inspeccionamos. */
 		switch(*c++) {
 		case ACCESS: {
-			/* implementame */
-			abort();
+			uint32_t i = leer32(c);
+			c += 4;
+			env x = e;
+			for (; i; i--, x = x->next);
+			(*s++).i = x->v.i;
+			break;
 		}
 
 		case CONST: {
 			/* Una constante: la leemos y la ponemos en la pila */
-			(*s++).i = *c++;
+			uint32_t v = leer32(c);
+			c+=4;
+			(*s++).i = v;
 			break;
 		}
 
@@ -268,8 +282,16 @@ void run(code init_c)
 		}
 
 		case TAILCALL: {
-			/* implementame */
-			abort();
+			value arg = *--s;
+			value fun = *--s;
+
+			/* Cambiamos al entorno de la clausura, agregando arg */
+			e = env_push(fun.clo.clo_env, arg);
+
+			/* Saltamos! */
+			c = fun.clo.clo_body;
+
+			break;
 		}
 
 		case FUNCTION: {
@@ -283,7 +305,8 @@ void run(code init_c)
 			 * incluye la longitud del cuerpo del lambda en
 			 * el entero siguiente, así que lo consumimos.
 			 */
-			int leng = *c++;
+			int leng = leer32(c);
+			c += 4;
 
 			/* Ahora sí, armamos la clausura */
 			struct clo clo = {
@@ -326,12 +349,15 @@ void run(code init_c)
 
 		case SHIFT: {
 			/* implementame */
-			abort();
+			value v = *--s;
+			e = env_push(e, v);
+
+			break;
 		}
 
 		case DROP: {
-			/* implementame */
-			abort();
+			e = e->next;
+			break;
 		}
 
 		case PRINTN: {
