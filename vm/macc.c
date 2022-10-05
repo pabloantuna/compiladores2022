@@ -119,7 +119,7 @@ static int env_len(env e)
 }
 
 uint32_t leer32(uint8_t *bytes) {
-	uint32_t v;
+	uint32_t v = 0;
 	for (int i = 0; i < 4; i++) {
 		v |= (*bytes++) << 8 * i;
 	}
@@ -206,7 +206,7 @@ void run(code init_c)
 			c += 4;
 			env x = e;
 			for (; i; i--, x = x->next);
-			(*s++).i = x->v.i;
+			(*s++) = x->v;
 			break;
 		}
 
@@ -330,7 +330,18 @@ void run(code init_c)
 			 * binding recursivo. La modificamos para que el
 			 * entorno se apunte a sí mismo.
 			 */
-			value clo = *--s;
+
+			int leng = leer32(c);
+			c += 4;
+
+			/* Ahora sí, armamos la clausura */
+			value clo = {
+				.clo = {
+					.clo_env = e,
+					.clo_body = c,
+				}
+			};
+
 			env env_fix;
 
 			/* Atar el nudo! */
@@ -340,10 +351,13 @@ void run(code init_c)
 
 			(*s++) = clo;
 
+			/* Y saltamos de largo el cuerpo del lambda */
+			c += leng;
 			break;
 		}
 
 		case STOP: {
+			printf("The End\n");
 			return;
 		}
 
@@ -362,15 +376,22 @@ void run(code init_c)
 
 		case PRINTN: {
 			uint32_t i = s[-1].i;
-			wprintf(L"%" PRIu32 "\n", i);
+			printf("%" PRIu32 "\n", i);
 			break;
 		}
 
 		case PRINT: {
-			wchar_t wc;
-			while ((wc = *c++))
-				putwchar(wc);
+			printf("%s\n", c);
+			while(*c++);
+			break;
+		}
 
+		case CJUMP: {
+			uint32_t n = (*--s).i;
+			uint32_t jumpLength = leer32(c);
+			c += 4;
+			if(n)
+				c += jumpLength;
 			break;
 		}
 
