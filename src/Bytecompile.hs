@@ -22,10 +22,9 @@ import qualified Data.ByteString.Lazy as BS
 import Data.Binary ( Binary(put, get), decode, encode, Word8, putWord8, getWord8 )
 import Data.Binary.Get ( isEmpty)
 
-import Data.List (intercalate, unfoldr, dropWhileEnd)
+import Data.List (intercalate, unfoldr)
 import Data.Char
 import Eval (semOp)
-import Common (Pos(NoPos))
 import Subst (close)
 import Data.Bits (shiftR, Bits (..), (.&.))
 
@@ -70,6 +69,7 @@ pattern FUNCTION = 4
 pattern CALL     = 5
 pattern ADD      = 6
 pattern SUB      = 7
+pattern JUMP     = 8
 pattern FIX      = 9
 pattern STOP     = 10
 pattern SHIFT    = 11
@@ -90,6 +90,7 @@ showOps (FUNCTION:i1:i2:i3:i4:xs)  = ("FUNCTION " ++ show (bc2int [i1,i2,i3,i4])
 showOps (CALL:xs)        = "CALL" : showOps xs
 showOps (ADD:xs)         = "ADD" : showOps xs
 showOps (SUB:xs)         = "SUB" : showOps xs
+showOps (JUMP:i1:i2:i3:i4:xs)      = ("JUMP " ++ show (bc2int [i1,i2,i3,i4])) : showOps xs
 showOps (FIX:i1:i2:i3:i4:xs)  = ("FIX " ++ show (bc2int [i1,i2,i3,i4])) : showOps xs
 showOps (STOP:xs)        = "STOP" : showOps xs
 showOps (CJUMP:i1:i2:i3:i4:xs)      = ("CJUMP " ++ show (bc2int [i1,i2,i3,i4])) : showOps xs
@@ -134,30 +135,36 @@ bcc (IfZ _ cond thenT elseT) = do
   bthen <- bcc thenT
   belse <- bcc elseT
   -- La idea es que CJUMP saque lo que está en la pila, y si es distinto de 0 entonces salta tantas posiciones como lo dice en el proximo byte
-  return $ bcond ++ (CJUMP : int2bc (length bthen + 10)) ++ bthen ++ (CONST:int2bc 1) ++ (CJUMP : int2bc (length belse)) ++ belse
+  return $ bcond ++ (CJUMP : int2bc (length bthen + 5)) ++ bthen ++ (JUMP : int2bc (length belse)) ++ belse
 bcc (Let _ _ _ def (Sc1 body)) = do
   bdef <- bcc def
   bbody <- bcc body
   return $ bdef ++ [SHIFT] ++ bbody ++ [DROP]
 
 bccT :: MonadFD4 m => TTerm -> m Bytecode
-bccT (App _ t t') = do
+bccT = bccGeneral [TAILCALL] [RETURN]
+
+bccS :: MonadFD4 m => TTerm -> m Bytecode
+bccS = bccGeneral [CALL, STOP] [STOP]
+
+bccGeneral :: MonadFD4 m => Bytecode -> Bytecode -> TTerm -> m Bytecode
+bccGeneral call end (App _ t t') = do
   bt <- bcc t
   bt' <- bcc t'
-  return $ bt ++ bt' ++ [TAILCALL]
-bccT (IfZ _ cond thenT elseT) = do
+  return $ bt ++ bt' ++ call
+bccGeneral call end (IfZ _ cond thenT elseT) = do
   bcond <- bcc cond
-  bthen <- bccT thenT
-  belse <- bccT elseT
+  bthen <- bccGeneral call end thenT
+  belse <- bccGeneral call end elseT
   -- La idea es que CJUMP saque lo que está en la pila, y si es distinto de 0 entonces salta tantas posiciones como lo dice en el proximo byte
-  return $ bcond ++ (CJUMP : int2bc (length bthen + 10)) ++ bthen ++ (CONST:int2bc 1) ++ (CJUMP : int2bc (length belse)) ++ belse
-bccT (Let _ _ _ def (Sc1 body)) = do
+  return $ bcond ++ (CJUMP : int2bc (length bthen)) ++ bthen ++ belse
+bccGeneral call end (Let _ _ _ def (Sc1 body)) = do
   bdef <- bcc def
-  bbody <- bccT body
+  bbody <- bccGeneral call end body
   return $ bdef ++ [SHIFT] ++ bbody
-bccT t = do
+bccGeneral call end t = do
   bt <- bcc t
-  return $ bt ++ [RETURN]
+  return $ bt ++ end
 
 fillWith0 :: Bytecode -> Bytecode
 fillWith0 b@[_, _, _, _] = b
@@ -174,9 +181,6 @@ bc2int :: Bytecode -> Int
 bc2int = foldr unstep 0
   where
     unstep b a = a `shiftL` 8 .|. fromIntegral b
-
-
--- string2bc y bc2string hay que hacerlas bien xd
 
 -- ord/chr devuelven los codepoints unicode, o en otras palabras
 -- la codificación UTF-32 del caracter.
@@ -204,11 +208,11 @@ global2Free x = x
 
 bytecompileModule :: MonadFD4 m => Module -> m Bytecode
 bytecompileModule m = do
-  t <- bcc $ toLets $ map (fmap $ fmap global2Free) m
-  return $ dropWhileEnd (== DROP) t ++ [STOP]
+  bccS $ toLets $ map (fmap $ fmap global2Free) m
 
 toLets :: Module -> TTerm
-toLets [] = Const (NoPos, NatTy Nothing) (CNat 0)
+toLets [] = error "que monada"
+toLets [Decl p s ty t] = t
 toLets ((Decl p s ty t) : des) = Let (p, getTy t) s ty t (close s $ toLets des)
 
 -- | Toma un bytecode, lo codifica y lo escribe un archivo
@@ -235,10 +239,11 @@ runBC' s e (FUNCTION:i1:i2:i3:i4:xs) = runBC' (Fun e (take (bc2int [i1, i2, i3, 
 runBC' (v : Fun ef cf : s) e (CALL:xs) = runBC' (RA e xs : s) (v : ef) cf
 runBC' (I y : I x : s) e (ADD:xs) = runBC' (I (semOp Add x y) : s) e xs
 runBC' (I y : I x : s) e (SUB:xs) = runBC' (I (semOp Sub x y) : s) e xs
+runBC' s e (JUMP:i1:i2:i3:i4:xs) = runBC' s e (drop (bc2int [i1, i2, i3, i4]) xs)
 runBC' s e (FIX:i1:i2:i3:i4:xs) = runBC' (Fun efix (take (bc2int [i1, i2, i3, i4]) xs) : s) e (drop (bc2int [i1, i2, i3, i4]) xs)
   where efix = Fun efix (take (bc2int [i1, i2, i3, i4]) xs) : e
 runBC' s e (STOP:xs) = printFD4 "The End"
-runBC' (I n : s) e (CJUMP:i1:i2:i3:i4:xs) -- CJump es un JNZ
+runBC' (I n : s) e (CJUMP:i1:i2:i3:i4:xs)
  | n == 0 = runBC' s e xs
  | otherwise = runBC' s e (drop (bc2int [i1, i2, i3, i4]) xs)
 runBC' (v : s) e (SHIFT:xs) = runBC' s (v : e) xs
