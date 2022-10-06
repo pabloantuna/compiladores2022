@@ -19,7 +19,7 @@
 STATIC_ASSERT(sizeof (int) >= sizeof (uint32_t));
 
 /* Habilitar impresión de traza? */
-#define TRACE 1
+#define TRACE 0
 
 enum {
 	RETURN   = 1,
@@ -29,7 +29,7 @@ enum {
 	CALL     = 5,
 	ADD      = 6,
 	SUB      = 7,
-	JUMP     = 8, // jijiji no
+	JUMP     = 8,
 	FIX      = 9,
 	STOP     = 10,
 	SHIFT    = 11,
@@ -392,6 +392,11 @@ void run(code init_c)
 			c += 4;
 			if(n)
 				c += jumpLength;
+			break;
+		}
+		
+		case JUMP: {
+			c += 4 + leer32(c);
 			break;
 		}
 
