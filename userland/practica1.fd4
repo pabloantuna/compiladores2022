@@ -51,6 +51,12 @@ let satan : Nat = print "desde el mismisimo inframundo: ඞ aaaa" (ack 3 1)
 
 # let satan3 : Nat = pipi 420
 
+let caso (x : Nat) : Nat = (let y : Nat = 1 in 2) + x
+
+let caso0 : Nat = ifz 3 then print "caso cerrado: " (caso 0) else 3
+
+# let casita : Nat = gcd 3 15
+
 {-
 lasdjflasdljfajlsdf
 ';'';;;;';p[p09876543wsdfghj,./xcvbzxcbz]cvb
