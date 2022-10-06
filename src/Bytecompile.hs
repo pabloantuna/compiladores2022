@@ -22,7 +22,7 @@ import qualified Data.ByteString.Lazy as BS
 import Data.Binary ( Binary(put, get), decode, encode, Word8, putWord8, getWord8 )
 import Data.Binary.Get ( isEmpty)
 
-import Data.List (intercalate, unfoldr)
+import Data.List (intercalate, unfoldr, dropWhileEnd)
 import Data.Char
 import Eval (semOp)
 import Common (Pos(NoPos))
@@ -85,14 +85,14 @@ showOps [] = []
 showOps (NULL:xs)        = "NULL" : showOps xs
 showOps (RETURN:xs)      = "RETURN" : showOps xs
 showOps (CONST:i1:i2:i3:i4:xs)     = ("CONST " ++  show (bc2int [i1,i2,i3,i4])) : showOps xs
-showOps (ACCESS:i1:i2:i3:i4:xs)    = "ACCESS" : show (bc2int [i1,i2,i3,i4]) : showOps xs
-showOps (FUNCTION:i1:i2:i3:i4:xs)  = "FUNCTION" : show (bc2int [i1,i2,i3,i4]) : showOps xs
+showOps (ACCESS:i1:i2:i3:i4:xs)    = ("ACCESS " ++ show (bc2int [i1,i2,i3,i4])) : showOps xs
+showOps (FUNCTION:i1:i2:i3:i4:xs)  = ("FUNCTION " ++ show (bc2int [i1,i2,i3,i4])) : showOps xs
 showOps (CALL:xs)        = "CALL" : showOps xs
 showOps (ADD:xs)         = "ADD" : showOps xs
 showOps (SUB:xs)         = "SUB" : showOps xs
-showOps (FIX:xs)         = "FIX" : showOps xs
+showOps (FIX:i1:i2:i3:i4:xs)  = ("FIX " ++ show (bc2int [i1,i2,i3,i4])) : showOps xs
 showOps (STOP:xs)        = "STOP" : showOps xs
-showOps (CJUMP:i1:i2:i3:i4:xs)      = "CJUMP" : show (bc2int [i1,i2,i3,i4]): showOps xs
+showOps (CJUMP:i1:i2:i3:i4:xs)      = ("CJUMP " ++ show (bc2int [i1,i2,i3,i4])) : showOps xs
 showOps (SHIFT:xs)       = "SHIFT" : showOps xs
 showOps (DROP:xs)        = "DROP" : showOps xs
 showOps (PRINT:xs)       = let (msg,_:rest) = span (/=NULL) xs
@@ -205,7 +205,7 @@ global2Free x = x
 bytecompileModule :: MonadFD4 m => Module -> m Bytecode
 bytecompileModule m = do
   t <- bcc $ toLets $ map (fmap $ fmap global2Free) m
-  return $ t ++ [STOP]
+  return $ dropWhileEnd (== DROP) t ++ [STOP]
 
 toLets :: Module -> TTerm
 toLets [] = Const (NoPos, NatTy Nothing) (CNat 0)
