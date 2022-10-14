@@ -1,0 +1,6 @@
+type Jorge = Nat -> Nat -> Nat
+let gcd : Jorge = fix (f : Jorge) (n : Nat) (m : Nat) -> ifz n then m else (ifz m then n else (ifz (n - m) then (f (m - n) n) else (f m (n - m))))
+
+let x : Nat = let y : Nat = print "y es " 3 in (let z : Nat = 6 in y)
+
+let gapp : Jorge = gcd

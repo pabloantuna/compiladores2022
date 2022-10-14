@@ -38,6 +38,7 @@ enum {
 	PRINTN   = 14,
 	CJUMP    = 15,
 	TAILCALL = 16,
+	POP      = 17
 };
 
 #define quit(...)							\
@@ -397,6 +398,11 @@ void run(code init_c)
 		
 		case JUMP: {
 			c += 4 + leer32(c);
+			break;
+		}
+
+		case POP: {
+			--s;
 			break;
 		}
 

@@ -25,8 +25,9 @@ import Data.Binary.Get ( isEmpty)
 import Data.List (intercalate, unfoldr)
 import Data.Char
 import Eval (semOp)
-import Subst (close)
+import Subst (close, varChanger)
 import Data.Bits (shiftR, Bits (..), (.&.))
+import Data.List.Extra (takeEnd)
 
 type Opcode = Word8
 type Bytecode = [Word8]
@@ -78,6 +79,10 @@ pattern PRINT    = 13
 pattern PRINTN   = 14
 pattern CJUMP    = 15
 pattern TAILCALL = 16
+pattern POP = 17
+
+indent :: String -> String
+indent = unlines . map ("  " ++). lines
 
 --función util para debugging: muestra el Bytecode de forma más legible.
 showOps :: Bytecode -> [String]
@@ -86,25 +91,31 @@ showOps (NULL:xs)        = "NULL" : showOps xs
 showOps (RETURN:xs)      = "RETURN" : showOps xs
 showOps (CONST:i1:i2:i3:i4:xs)     = ("CONST " ++  show (bc2int [i1,i2,i3,i4])) : showOps xs
 showOps (ACCESS:i1:i2:i3:i4:xs)    = ("ACCESS " ++ show (bc2int [i1,i2,i3,i4])) : showOps xs
-showOps (FUNCTION:i1:i2:i3:i4:xs)  = ("FUNCTION " ++ show (bc2int [i1,i2,i3,i4])) : showOps xs
+showOps (FUNCTION:i1:i2:i3:i4:xs)  = let i = bc2int [i1,i2,i3,i4] in ("FUNCTION (\n" ++ indent (showBC (take i xs)) ++ ")") : showOps (drop i xs)
 showOps (CALL:xs)        = "CALL" : showOps xs
 showOps (ADD:xs)         = "ADD" : showOps xs
 showOps (SUB:xs)         = "SUB" : showOps xs
 showOps (JUMP:i1:i2:i3:i4:xs)      = ("JUMP " ++ show (bc2int [i1,i2,i3,i4])) : showOps xs
-showOps (FIX:i1:i2:i3:i4:xs)  = ("FIX " ++ show (bc2int [i1,i2,i3,i4])) : showOps xs
+showOps (FIX:i1:i2:i3:i4:xs)  = let i = bc2int [i1,i2,i3,i4] in ("FIX (\n" ++ indent (showBC (take i xs)) ++ ")") : showOps (drop i xs)
 showOps (STOP:xs)        = "STOP" : showOps xs
-showOps (CJUMP:i1:i2:i3:i4:xs)      = ("CJUMP " ++ show (bc2int [i1,i2,i3,i4])) : showOps xs
+showOps (CJUMP:i1:i2:i3:i4:xs)      = let
+  i = bc2int [i1,i2,i3,i4]
+  (thenBC, elseRest) = splitAt i xs
+  n = bc2int $ takeEnd 4 thenBC
+  (elseBC, rest) = splitAt n elseRest
+  in ("IFZ THEN (\n" ++ indent (showBC thenBC) ++ ") ELSE (\n" ++ indent (showBC elseBC) ++ ")") : showOps rest
 showOps (SHIFT:xs)       = "SHIFT" : showOps xs
 showOps (DROP:xs)        = "DROP" : showOps xs
 showOps (PRINT:xs)       = let (msg,_:rest) = span (/=NULL) xs
-                           in ("PRINT " ++ show (bc2string msg)) : showOps xs
+                           in ("PRINT \"" ++ bc2string msg ++ "\"") : showOps rest
 showOps (PRINTN:xs)      = "PRINTN" : showOps xs
 showOps (ADD:xs)         = "ADD" : showOps xs
 showOps (TAILCALL:xs)    = "TAILCALL" : showOps xs
+showOps (POP:xs)    = "POP" : showOps xs
 showOps (x:xs)           = show x : showOps xs
 
 showBC :: Bytecode -> String
-showBC = intercalate "; " . showOps
+showBC = intercalate ";\n" . showOps
 
 bcc :: MonadFD4 m => TTerm -> m Bytecode
 bcc (V _ (Bound n)) = return $ ACCESS : int2bc n
@@ -136,10 +147,38 @@ bcc (IfZ _ cond thenT elseT) = do
   belse <- bcc elseT
   -- La idea es que CJUMP saque lo que está en la pila, y si es distinto de 0 entonces salta tantas posiciones como lo dice en el proximo byte
   return $ bcond ++ (CJUMP : int2bc (length bthen + 5)) ++ bthen ++ (JUMP : int2bc (length belse)) ++ belse
-bcc (Let _ _ _ def (Sc1 body)) = do
+bcc (Let _ _ _ def (Sc1 body))
+ | usesLetDef body = do
   bdef <- bcc def
   bbody <- bcc body
   return $ bdef ++ [SHIFT] ++ bbody ++ [DROP]
+ | otherwise = do
+  bdef <- bcc def
+  bbody <- bcc (shiftAccess body)
+  return $ bdef ++ [POP] ++ bbody
+
+shiftAccess :: TTerm -> TTerm
+shiftAccess = varChanger (\_ p n -> V p (Free n)) bnd
+  where
+    bnd d p i
+     | i >= d = V p (Bound (i - 1))
+     | otherwise = V p (Bound i)
+
+usesLetDef :: TTerm -> Bool
+usesLetDef = usesLetDef' 0
+  where
+    usesLetDef' :: Int -> TTerm -> Bool
+    usesLetDef' n (V _ (Bound i)) = i == n
+    usesLetDef' _ (V _ (Free _)) = False
+    usesLetDef' _ (V _ (Global _)) = False
+    usesLetDef' _ (Const _ _) = False
+    usesLetDef' n (Lam _ _ _ (Sc1 t)) = usesLetDef' (n + 1) t
+    usesLetDef' n (App _ t t') = usesLetDef' n t || usesLetDef' n t'
+    usesLetDef' n (Print _ _ t) = usesLetDef' n t
+    usesLetDef' n (BinaryOp _ _ t t') = usesLetDef' n t || usesLetDef' n t'
+    usesLetDef' n (Fix _ _ _ _ _ (Sc2 t)) = usesLetDef' (n + 2) t
+    usesLetDef' n (IfZ _ t t' t'') = usesLetDef' n t || usesLetDef' n t' || usesLetDef' n t''
+    usesLetDef' n (Let _ _ _ t (Sc1 t')) = usesLetDef' n t || usesLetDef' (n + 1) t'
 
 bccT :: MonadFD4 m => TTerm -> m Bytecode
 bccT = bccGeneral [TAILCALL] [RETURN]
@@ -158,10 +197,15 @@ bccGeneral call end (IfZ _ cond thenT elseT) = do
   belse <- bccGeneral call end elseT
   -- La idea es que CJUMP saque lo que está en la pila, y si es distinto de 0 entonces salta tantas posiciones como lo dice en el proximo byte
   return $ bcond ++ (CJUMP : int2bc (length bthen)) ++ bthen ++ belse
-bccGeneral call end (Let _ _ _ def (Sc1 body)) = do
+bccGeneral call end (Let _ _ _ def (Sc1 body))
+ | usesLetDef body = do
   bdef <- bcc def
   bbody <- bccGeneral call end body
   return $ bdef ++ [SHIFT] ++ bbody
+ | otherwise = do
+  bdef <- bcc def
+  bbody <- bccGeneral call end (shiftAccess body)
+  return $ bdef ++ [POP] ++ bbody
 bccGeneral call end t = do
   bt <- bcc t
   return $ bt ++ end
@@ -207,8 +251,7 @@ global2Free (Global s) = Free s
 global2Free x = x
 
 bytecompileModule :: MonadFD4 m => Module -> m Bytecode
-bytecompileModule m = do
-  bccS $ toLets $ map (fmap $ fmap global2Free) m
+bytecompileModule = (\x -> if null x then return [] else bccS (toLets x)) . map (fmap $ fmap global2Free)
 
 toLets :: Module -> TTerm
 toLets [] = error "que monada"
@@ -251,4 +294,5 @@ runBC' s (v : e) (DROP:xs) = runBC' s e xs
 runBC' s e (PRINT:xs) = let (str, _:rest) = span (/= NULL) xs in printFD4 (bc2string str) >> runBC' s e rest
 runBC' s@(I n : _) e (PRINTN:xs) = printFD4 (show n) >> runBC' s e xs
 runBC' (v : Fun ef cf : s) e (TAILCALL:xs) = runBC' s (v : ef) cf
+runBC' (_:s) e (POP:xs) = runBC' s e xs
 runBC' s e (x:xs) = failFD4 "Amigo qué me mandaste"
