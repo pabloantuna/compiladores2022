@@ -306,6 +306,7 @@ void run(code init_c)
 			 * incluye la longitud del cuerpo del lambda en
 			 * el entero siguiente, así que lo consumimos.
 			 */
+
 			int leng = leer32(c);
 			c += 4;
 
@@ -363,7 +364,6 @@ void run(code init_c)
 		}
 
 		case SHIFT: {
-			/* implementame */
 			value v = *--s;
 			e = env_push(e, v);
 
