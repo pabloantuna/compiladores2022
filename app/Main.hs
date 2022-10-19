@@ -176,7 +176,7 @@ handleDecl d = do
                   (Decl p x ty tt) <- tcDecl elabbed
                   o <- getOpt
                   td <- if o then optimize tt else return tt
-                  let tdDecl = (Decl p x ty td)
+                  let tdDecl = Decl p x ty td
                   addDecl tdDecl
                   ppterm <- ppDecl tdDecl
                   printFD4 ppterm

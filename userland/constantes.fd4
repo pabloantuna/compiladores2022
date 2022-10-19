@@ -1,3 +1,13 @@
+let id2 (x : Nat) : Nat = x
+
+let id (x : Nat) : Nat = id2 x
+
 let veinte : Nat = let a : Nat = ifz 3 - 2 then 1 + (ifz 0 then 2 else 3) else 6 + 6 + 6 in ifz a then 3 else a + 2
 
 let veintidos : Nat = veinte + 2
+
+let batman : Nat = id2 4
+
+let test : Nat = (id 3) + 0
+
+let ceroMenos : Nat = let x : Nat = batman in 0 - x
