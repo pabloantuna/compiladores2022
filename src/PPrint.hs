@@ -38,8 +38,7 @@ import Prettyprinter
 import MonadFD4 ( gets, MonadFD4, failPosFD4 )
 import Global ( GlEnv(glb) )
 import Common (Pos)
-import Data.List (delete)
-import Data.List (groupBy)
+import Data.List (delete, groupBy)
 import Data.Function (on)
 
 freshen :: [Name] -> Name -> Name

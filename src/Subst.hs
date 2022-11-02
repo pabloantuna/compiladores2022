@@ -43,7 +43,7 @@ varChanger local bound t = go 0 t where
 -- debe ser fresco en el término para que no ocurra shadowing.
 open :: Name -> Scope info Var -> Tm info Var
 open nm (Sc1 t) = varChanger (\_ p n -> V p (Free n)) bnd t
-   where bnd depth p i | i <  depth = V p (Bound i)
+   where bnd depth p i | i /=  depth = V p (Bound i)
                        | i == depth =  V p (Free nm)
                        | otherwise  = abort "open: M is not LC"
 
@@ -70,6 +70,13 @@ subst n (Sc1 m) = varChanger (\_ p n -> V p (Free n)) bnd m
              | i <  depth = V p (Bound i)
              | i == depth = n
              | otherwise  = abort "subst: M is not LC"
+
+subst' :: Tm info Var -> Scope info Var -> Tm info Var
+subst' n (Sc1 m) = varChanger (\_ p n -> V p (Free n)) bnd m
+   where bnd depth p i 
+             | i <  depth = V p (Bound i)
+             | i == depth = n
+             | otherwise  = V p (Bound $ i - 1)
 
 -- `subst2 u1 u2 t1 sustituye índice de de Bruijn 0 en t por u1 y el índice 1 por u2. 
 -- Notar que t es un Scope con dos índices que escapan el término.
