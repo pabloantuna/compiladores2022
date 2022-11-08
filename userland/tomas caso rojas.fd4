@@ -3,4 +3,10 @@ let gcd : Jorge = fix (f : Jorge) (n : Nat) (m : Nat) -> ifz n then m else (ifz 
 
 let x : Nat = let y : Nat = print "y es " 3 in (let z : Nat = 6 in y)
 
-let gapp : Jorge = gcd
+let p : Nat = print "hola" 0
+
+let coco : Nat = gcd 15 20
+
+let p2 : Nat = print "chau" 0
+
+let gapp : Nat = print "El mayor común denominador entre el número 15 y el número 20 es " (gcd 15 20)
