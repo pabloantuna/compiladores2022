@@ -1,0 +1,6 @@
+Chequeando tipos de tests/ok/00-basicos/100-orden-print.fd4
+[0;35;3mlet[0m orden_de_impresion  : [0;94;3mNat[0m [0;32m=[0m [0;32mprint[0m "uno! " ([0;32mprint[0m "dos! " [0;91m3[0m)
+Chequeando tipos de tests/ok/00-basicos/100-orden-print.fd4
+[0;35;3mlet[0m f (x : [0;94;3mNat[0m) : [0;94;3mNat[0m [0;32m=[0m [0;32mifz[0m x [0;32mthen[0m [0;32mprint[0m "uno! " [0;91m1[0m [0;32melse[0m [0;32mprint[0m "dos! " [0;91m2[0m
+Chequeando tipos de tests/ok/00-basicos/100-orden-print.fd4
+[0;35;3mlet[0m test  : [0;94;3mNat[0m [0;32m=[0m [0;32mlet[0m a  : [0;94;3mNat[0m [0;32m=[0m f [0;91m0[0m [0;32min[0m [0;32mlet[0m b  : [0;94;3mNat[0m [0;32m=[0m f [0;91m1[0m [0;32min[0m [0;91m0[0m

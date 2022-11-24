@@ -28,6 +28,7 @@ import Eval (semOp)
 import Subst (close, varChanger)
 import Data.Bits (shiftR, Bits (..), (.&.))
 import Data.List.Extra (takeEnd)
+import System.IO
 
 type Opcode = Word8
 type Bytecode = [Word8]
@@ -285,13 +286,13 @@ runBC' (I y : I x : s) e (SUB:xs) = runBC' (I (semOp Sub x y) : s) e xs
 runBC' s e (JUMP:i1:i2:i3:i4:xs) = runBC' s e (drop (bc2int [i1, i2, i3, i4]) xs)
 runBC' s e (FIX:i1:i2:i3:i4:xs) = runBC' (Fun efix (take (bc2int [i1, i2, i3, i4]) xs) : s) e (drop (bc2int [i1, i2, i3, i4]) xs)
   where efix = Fun efix (take (bc2int [i1, i2, i3, i4]) xs) : e
-runBC' s e (STOP:xs) = printFD4 "The End"
+runBC' s e (STOP:xs) = return ()
 runBC' (I n : s) e (CJUMP:i1:i2:i3:i4:xs)
  | n == 0 = runBC' s e xs
  | otherwise = runBC' s e (drop (bc2int [i1, i2, i3, i4]) xs)
 runBC' (v : s) e (SHIFT:xs) = runBC' s (v : e) xs
 runBC' s (v : e) (DROP:xs) = runBC' s e xs
-runBC' s e (PRINT:xs) = let (str, _:rest) = span (/= NULL) xs in printFD4 (bc2string str) >> runBC' s e rest
+runBC' s e (PRINT:xs) = let (str, _:rest) = span (/= NULL) xs in (liftIO . putStr) (bc2string str) >> runBC' s e rest
 runBC' s@(I n : _) e (PRINTN:xs) = printFD4 (show n) >> runBC' s e xs
 runBC' (v : Fun ef cf : s) e (TAILCALL:xs) = runBC' s (v : ef) cf
 runBC' (_:s) e (POP:xs) = runBC' s e xs

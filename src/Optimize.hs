@@ -7,7 +7,7 @@ import Subst (varChanger, subst')
 import PPrint (pp)
 
 optimize :: MonadFD4 m => TTerm -> m TTerm
-optimize = peephole inlineExpansion >=> peephole consFold
+optimize = peephole consFold
 
 inlineExpansion :: MonadFD4 m => TTerm -> m TTerm
 inlineExpansion coso@(Let x0 s ty def body@(Sc1 t))
@@ -15,7 +15,7 @@ inlineExpansion coso@(Let x0 s ty def body@(Sc1 t))
   -- pp coso >>= printFD4 . ("Inlineando : " ++)
   -- printFD4 ("llamadas de " ++ show s ++ ":")
   -- mapM_ (pp >=> printFD4) calls
-  peephole inlineExpansion $ subst' (if isFix def then extractFixInvariant def else def) body
+  peephole inlineExpansion $ subst' (if False then extractFixInvariant def else def) body
   where calls = getCalls 0 t
 inlineExpansion (App x0 l@(Lam x1 s ty sc) v@(Const _ _)) = return (subst' v sc)
 inlineExpansion (App x0 l@(Lam x1 s ty sc) arg) = return (Let x0 s (getTy arg) arg sc)

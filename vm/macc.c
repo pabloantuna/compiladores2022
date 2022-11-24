@@ -359,7 +359,6 @@ void run(code init_c)
 		}
 
 		case STOP: {
-			printf("The End\n");
 			return;
 		}
 
@@ -382,7 +381,7 @@ void run(code init_c)
 		}
 
 		case PRINT: {
-			printf("%s\n", c);
+			printf("%s", c);
 			while(*c++);
 			break;
 		}

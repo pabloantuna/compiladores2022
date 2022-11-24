@@ -1,0 +1,2 @@
+Chequeando tipos de tests/ok/00-basicos/001-print.fd4
+[0;35;3mlet[0m x  : [0;94;3mNat[0m [0;32m=[0m [0;32mprint[0m "X = " [0;91m246[0m

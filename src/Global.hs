@@ -36,6 +36,7 @@ data Mode =
   | RunVM
   | Eval
   | CC
+  | CEK
   -- | Canon
   -- | Assembler
   -- | Build

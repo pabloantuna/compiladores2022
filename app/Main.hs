@@ -57,6 +57,7 @@ parseMode = (,) <$>
       <|> flag Interactive Interactive ( long "interactive" <> short 'i' <> help "Ejecutar en forma interactiva")
       <|> flag Eval        Eval        (long "eval" <> short 'e' <> help "Evaluar programa")
       <|> flag' CC ( long "cc" <> short 'c' <> help "Compilar a código C")
+      <|> flag' CEK (long "cek" <> short 'p' <> help "Ejecutar en la CEK")
   -- <|> flag' Canon ( long "canon" <> short 'n' <> help "Imprimir canonicalización")
   -- <|> flag' Assembler ( long "assembler" <> short 'a' <> help "Imprimir Assembler resultante")
   -- <|> flag' Build ( long "build" <> short 'b' <> help "Compilar")
@@ -195,6 +196,7 @@ handleDecl d = do
                   printFD4 ppterm
                   return Nothing
           InteractiveCEK -> handleAdd (\tt -> do {te <- search tt [] []; return $ toTTerm te}) d
+          CEK -> handleAdd (\tt -> do {te <- search tt [] []; return $ toTTerm te}) d
           Bytecompile -> handleAdd return d
           CC -> handleAdd return d
           RunVM -> do

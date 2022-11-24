@@ -1,0 +1,7 @@
+Chequeando tipos de tests/ok/00-basicos/101-print.fd4
+[0;35;3mlet[0m test (x : [0;94;3mNat[0m) : [0;94;3mNat[0m [0;32m=[0m [0;32mlet[0m res  : [0;94;3mNat[0m [0;32m=[0m
+  ((x [0;32m+[0m x) [0;32m+[0m x) [0;32m+[0m x
+  [0;32min[0m
+  [0;32mlet[0m z  : [0;94;3mNat[0m [0;32m=[0m [0;32mprint[0m "res = " res [0;32min[0m res
+Chequeando tipos de tests/ok/00-basicos/101-print.fd4
+[0;35;3mlet[0m x  : [0;94;3mNat[0m [0;32m=[0m test [0;91m999[0m

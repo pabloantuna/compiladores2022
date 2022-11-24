@@ -1,0 +1,2 @@
+Chequeando tipos de tests/ok/10-sugar/100-letfun.fd4
+[0;35;3mlet[0m f (x : [0;94;3mNat[0m) : [0;94;3mNat[0m [0;32m=[0m x [0;32m+[0m [0;91m1[0m

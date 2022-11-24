@@ -51,7 +51,7 @@ destroy c ((BinOpFst vals bo tm) : k) = search tm vals (BinOpSnd bo c : k)
 destroy (N i (CNat n')) ((BinOpSnd bo (N _ (CNat n))) : k) = destroy (N i $ CNat $ semOp bo n n') k
 destroy (N _ (CNat n)) ((BinOpSnd bo (Closure cl)) : k) = failFD4 "Operación binaria cuyo primer argumento es una función"
 destroy (Closure cl) ((BinOpSnd bo val) : frs) = failFD4 "Operación binaria cuyo segundo argumento es una función"
-destroy c ((PrintFr s) : k) = printFD4 (s ++ show c) >> destroy c k
+destroy c@(N _ (CNat n)) ((PrintFr s) : k) = printFD4 (s ++ show n) >> destroy c k
 destroy c ((LetDef vals body) : k) = search body (c : vals) k
 
 toTTerm :: Val -> TTerm
