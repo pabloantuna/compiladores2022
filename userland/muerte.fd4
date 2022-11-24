@@ -1,0 +1,2 @@
+let rec f (x:Nat) : Nat = f x
+let ret : Nat = f 0

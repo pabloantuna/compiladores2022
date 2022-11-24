@@ -31,6 +31,7 @@ import Errors
 import Lang
 import Parse ( P, tm, program, declOrTm, runP )
 import Elab ( elab, elabTypeWithTag, elabDecl)
+import Optimize ( optimize )
 import Eval ( eval )
 import PPrint ( pp , ppTy, ppDecl, ppTypeSyn )
 import MonadFD4
@@ -60,9 +61,8 @@ parseMode = (,) <$>
   -- <|> flag' Assembler ( long "assembler" <> short 'a' <> help "Imprimir Assembler resultante")
   -- <|> flag' Build ( long "build" <> short 'b' <> help "Compilar")
       )
-   <*> pure False
    -- reemplazar por la siguiente línea para habilitar opción
-   -- <*> flag False True (long "optimize" <> short 'o' <> help "Optimizar código")
+   <*> flag False True (long "optimize" <> short 'o' <> help "Optimizar código")
 
 -- | Parser de opciones general, consiste de un modo y una lista de archivos a procesar
 parseArgs :: Parser (Mode,Bool, [FilePath])
@@ -159,7 +159,9 @@ handleAdd :: MonadFD4 m => (TTerm -> m TTerm) -> SDecl -> m (Maybe (Decl TTerm))
 handleAdd evalF d@LetDecl {} = do
       elabbed <- elabDecl d
       (Decl p x ty tt) <- tcDecl elabbed
-      te <- evalF tt
+      o <- getOpt
+      tt' <- if o then optimize tt else return tt
+      te <- evalF tt'
       addDecl (Decl p x ty te)
       return $ Just $ Decl p x ty te
 handleAdd _ (TypeDecl pos s st) = do
@@ -178,9 +180,12 @@ handleDecl d = do
               case d of
                 LetDecl {} -> do
                   elabbed <- elabDecl d
-                  td <- tcDecl elabbed
-                  addDecl td
-                  ppterm <- ppDecl td  --td'
+                  (Decl p x ty tt) <- tcDecl elabbed
+                  o <- getOpt
+                  td <- if o then optimize tt else return tt
+                  let tdDecl = Decl p x ty td
+                  addDecl tdDecl
+                  ppterm <- ppDecl tdDecl
                   printFD4 ppterm
                   return Nothing
                 t@(TypeDecl pos s st) -> do

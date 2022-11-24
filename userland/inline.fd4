@@ -1,0 +1,6 @@
+let p : Nat = ((fun (a:Nat) -> a) 2)
+
+let a : Nat = (let x : Nat = 0 in (fun (x y z w : Nat) -> x + y + z - w) x (print "hola soy el " 1) p 3)
+
+type Jorge = Nat -> Nat -> Nat
+let aa : Nat = let rec gcd (n m : Nat) : Nat = ifz n then m else (ifz m then n else (ifz (n - m) then (gcd (m - n) n) else (gcd m (n - m)))) in (gcd 2 3) + (fix (f: Nat -> Nat -> Nat) (x y : Nat) -> gcd x y) 15 20
