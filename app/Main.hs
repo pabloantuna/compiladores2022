@@ -37,7 +37,9 @@ import MonadFD4
 import TypeChecker ( tc, tcDecl )
 import CEK (search, toTTerm)
 import Bytecompile (bytecompileModule, bcWrite, showBC, bcRead, runBC)
+import ClosureConvert (runCC, cWrite)
 import System.FilePath (dropExtension)
+import C (ir2C)
 
 prompt :: String
 prompt = "FD4> "
@@ -53,7 +55,7 @@ parseMode = (,) <$>
       <|> flag' RunVM (long "runVM" <> short 'r' <> help "Ejecutar bytecode en la BVM")
       <|> flag Interactive Interactive ( long "interactive" <> short 'i' <> help "Ejecutar en forma interactiva")
       <|> flag Eval        Eval        (long "eval" <> short 'e' <> help "Evaluar programa")
-  -- <|> flag' CC ( long "cc" <> short 'c' <> help "Compilar a código C")
+      <|> flag' CC ( long "cc" <> short 'c' <> help "Compilar a código C")
   -- <|> flag' Canon ( long "canon" <> short 'n' <> help "Imprimir canonicalización")
   -- <|> flag' Assembler ( long "assembler" <> short 'a' <> help "Imprimir Assembler resultante")
   -- <|> flag' Build ( long "build" <> short 'b' <> help "Compilar")
@@ -141,7 +143,10 @@ compileFile f = do
         code <- bytecompileModule $ catMaybes modu
         printFD4 $ showBC code
         liftIO $ bcWrite code (dropExtension f ++ ".bc")
-        return ()
+      CC -> do
+        let codigoC = (ir2C . runCC . catMaybes) modu
+        printFD4 codigoC
+        liftIO $ cWrite codigoC (dropExtension f ++ ".c")
       _ -> return ()
     setInter i
 
@@ -186,6 +191,7 @@ handleDecl d = do
                   return Nothing
           InteractiveCEK -> handleAdd (\tt -> do {te <- search tt [] []; return $ toTTerm te}) d
           Bytecompile -> handleAdd return d
+          CC -> handleAdd return d
           RunVM -> do
             return Nothing
           Eval -> handleAdd eval d
