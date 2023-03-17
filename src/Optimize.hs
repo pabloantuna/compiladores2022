@@ -3,57 +3,55 @@ module Optimize (optimize) where
 import Eval (semOp)
 import Lang
 import MonadFD4
-import Subst (varChanger, subst')
-import PPrint (pp)
+import Subst (open, close, close2, open2, subst)
+import Common (Pos)
 
 optimize :: MonadFD4 m => TTerm -> m TTerm
-optimize = peephole consFold
+optimize = topDown inline >=> bottomUp consFold
 
-inlineExpansion :: MonadFD4 m => TTerm -> m TTerm
-inlineExpansion coso@(Let x0 s ty def body@(Sc1 t))
- | length calls == 1 || (isFunc def || noEffects def) && (termSize def < 20 && length calls < 5) = do
-  -- pp coso >>= printFD4 . ("Inlineando : " ++)
-  -- printFD4 ("llamadas de " ++ show s ++ ":")
-  -- mapM_ (pp >=> printFD4) calls
-  peephole inlineExpansion $ subst' (if False then extractFixInvariant def else def) body
-  where calls = getCalls 0 t
-inlineExpansion (App x0 l@(Lam x1 s ty sc) v@(Const _ _)) = return (subst' v sc)
-inlineExpansion (App x0 l@(Lam x1 s ty sc) arg) = return (Let x0 s (getTy arg) arg sc)
-inlineExpansion (App x0 (Let x1 s ty tm (Sc1 t)) t') = Let x1 s ty tm <$> (Sc1 <$> inlineExpansion (App x0 t (arreglar t')))
-inlineExpansion t = return t
+inline :: MonadFD4 m => TTerm -> m TTerm
+inline t@(Let _ _ _ def body)
+ | shouldInline t = inline $ subst def body
+inline a@(App {}) = do
+  return $ applyBodyArgs (getBody a)
+inline t = return t
 
-isFunc :: TTerm -> Bool
-isFunc (Lam {}) = True
-isFunc (Fix {}) = True
-isFunc _ = False
+shouldInline :: TTerm -> Bool
+shouldInline (Let _ _ _ def body) = noEffects def && termSize def < 10
+shouldInline t = False
 
-extractFixInvariant :: TTerm -> TTerm
-extractFixInvariant = id
+-- | La info del App y lo que se le estaba aplicando a la funcion
+type AppInfo = ((Pos, Ty), TTerm)
 
-getCalls :: Int -> TTerm -> [TTerm]
-getCalls d t@(V x0 (Bound n)) = [t | n == d] -- si queremos que cuente como una call cuando solamente se pone la funcion sin argumentos (por ahora ni idea)
-getCalls d (V x0 var) = []
-getCalls d (Const x0 co) = []
-getCalls d (Lam x0 s ty (Sc1 t)) = getCalls (d+1) t
-getCalls d t@(App x0 tm tm')
- | boundAtLeft d t = t:callsOnRights d t
- | otherwise = getCalls d tm ++ getCalls d tm'
-getCalls d (Print x0 s t) = getCalls d t
-getCalls d (BinaryOp x0 bo t t') = getCalls d t ++ getCalls d t'
-getCalls d (Fix x0 s ty str ty' (Sc2 t)) = getCalls (d+2) t
-getCalls d (IfZ x0 t t' t'') = getCalls d t ++ getCalls d t' ++ getCalls d t''
-getCalls d (Let x0 s ty def (Sc1 body)) = getCalls d def ++ getCalls (d+1) body
+-- | La info del Lam, y el nombre y tipo de la variable
+type ArgInfo = ((Pos, Ty), Name, Ty)
 
-boundAtLeft :: Int -> TTerm -> Bool
-boundAtLeft d (App _ t t') = boundAtLeft d t
-boundAtLeft d (V x0 (Bound n))
- | n == d = True
-boundAtLeft d t = False
+-- | Nos devuelve el cuerpo de la funcion de muchos argumentos, con una lista de expresiones que se están aplicando y de los args de la funcion
+getBody :: TTerm -> (TTerm, [AppInfo], [ArgInfo])
+getBody = getBody' [] []
+  where
+    getBody' :: [AppInfo] -> [ArgInfo] -> TTerm -> (TTerm, [AppInfo], [ArgInfo])
+    getBody' apps args a@(App x0 t t') = getBody' ((x0, t'):apps) args t
+    getBody' apps args l@(Lam x0 s ty sc) = getBody' apps ((x0, s, ty):args) (open s sc)
+    -- getBody' apps args l@(Fix x0 f fty x xty sc) = getBody' apps (l:args) (open2 f x sc)
+    getBody' apps args t = (t, reverse apps, args)
 
-callsOnRights :: Int -> TTerm -> [TTerm]
-callsOnRights d (App x0 t t') = callsOnRights d t ++ getCalls d t'
-callsOnRights d t = []
-
+-- | Convierte la función de varios argumentos a una serie de lets y substituciones. Si sobran apps o args restaura las aplicaciones y lambdas
+applyBodyArgs :: (TTerm, [AppInfo], [ArgInfo]) -> TTerm
+applyBodyArgs (t, [], []) = t
+applyBodyArgs (t, apps, args)
+ | length args > length apps = Lam x1 s ty (close s (applyBodyArgs (t, apps, restArgs)))
+ | length args < length apps = App x0 (applyBodyArgs (t, restApps, args)) t'
+ | otherwise = case t' of
+    V _ (Bound _) -> applyBodyArgs (subst t' (close s t), restApps, restArgs)
+    V _ (Free _) -> applyBodyArgs (subst t' (close s t), restApps, restArgs)
+    Const _ _ -> applyBodyArgs (subst t' (close s t), restApps, restArgs)
+    _ -> applyBodyArgs (Let x1 s ty t' (close s t), restApps, restArgs)
+   where
+    ((x0, t'):restApps) = apps
+    ((x1, s, ty):restArgs) = args
+    
+  
 termSize :: TTerm -> Int
 termSize (V x0 var) = 1
 termSize (Const x0 co) = 1
@@ -65,16 +63,13 @@ termSize (Fix x0 s ty str ty' (Sc2 t)) = 1 + termSize t -- Me dan miedo los fix 
 termSize (IfZ x0 t t' t'') = 1 + termSize t + termSize t' + termSize t''
 termSize (Let x0 s ty t (Sc1 t')) = 1 + termSize t + termSize t'
 
-arreglar :: TTerm -> TTerm
-arreglar = varChanger (\_ p n -> V p (Free n)) (\d p i -> V p (Bound $ if i > d then i + 1 else i))
-
-consFold :: MonadFD4 m => TTerm -> m TTerm -- Asume que ya fueron foldeadas las subexpresiones
+consFold :: MonadFD4 m => TTerm -> m TTerm -- Asume que ya fueron foldeadas las subexpresiones (pensado para bottomUp)
 consFold b@(V (p, _) (Global n)) = do
   -- Si el global es una constante, lo propagamos
   t <- lookupDecl n
   case t of
     Nothing -> failPosFD4 p "Global no encontrado"
-    Just a@(Const _ (CNat x)) -> return a -- (x - 2) + 3
+    Just a@(Const _ (CNat x)) -> return a
     Just _ -> return b
 consFold (BinaryOp x0 Add (BinaryOp _ Add t (Const x1 (CNat y))) (Const _ (CNat z))) = return $ BinaryOp x0 Add t (Const x1 (CNat $ y + z)) -- (x + y) + z = x + (y + z) nos deja foldear mas constantes
 consFold (BinaryOp x0 Sub (BinaryOp _ Sub t (Const x1 (CNat y))) (Const _ (CNat z))) = return $ BinaryOp x0 Sub t (Const x1 (CNat $ y + z)) -- (x - y) - z = x - (y + z) nos deja foldear mas constantes
@@ -89,66 +84,24 @@ consFold (BinaryOp x0 Sub c@(Const _ (CNat 0)) t) -- Caso 0 - x, que es siempre 
 consFold (BinaryOp x0 op (Const _ (CNat x)) (Const _ (CNat y))) = return $ Const x0 (CNat (semOp op x y))
 consFold (IfZ x0 (Const p (CNat 0)) t t') = return t -- Caso if con condicion 0 constante
 consFold (IfZ x0 (Const p (CNat _)) t t') = return t' -- Caso if con condicion >0 constante
-consFold (Let x0 s ty c@(Const _ _) sc) = peephole consFold $ subst' c sc -- Let constante, sustituimos a manopla
+consFold (Let x0 s ty def@(Const _ _) body) = bottomUp consFold $ subst def body -- Let constante, sustituimos a manopla
 consFold t = return t -- No hacemos nada xd
 
-peephole :: MonadFD4 m => (TTerm -> m TTerm) -> TTerm -> m TTerm
-peephole f v@(V x0 var) = f v
-peephole f c@(Const x0 co) = f c
-peephole f (Lam x0 s ty (Sc1 t)) = peephole f t >>= f . Lam x0 s ty . Sc1
-peephole f (App x0 t t') = do
-  tOpt <- peephole f t
-  t'Opt <- peephole f t'
-  f (App x0 tOpt t'Opt)
-peephole f (Print x0 s t) = peephole f t >>= f . Print x0 s
-peephole f (BinaryOp x0 bo t t') = do
-  tOpt <- peephole f t
-  t'Opt <- peephole f t'
-  f (BinaryOp x0 bo tOpt t'Opt)
-peephole f (Fix x0 s ty str ty' (Sc2 t)) = peephole f t >>= f . Fix x0 s ty str ty' . Sc2
-peephole f (IfZ x0 t t' t'') = do
-  tOpt <- peephole f t
-  t'Opt <- peephole f t'
-  t''Opt <- peephole f t''
-  f (IfZ x0 tOpt t'Opt t''Opt)
-peephole f (Let x0 s ty t (Sc1 t')) = do
-  tOpt <- peephole f t
-  t'Opt <- peephole f t'
-  f (Let x0 s ty tOpt (Sc1 t'Opt))
+applyInside :: MonadFD4 m => (TTerm -> m TTerm) -> TTerm -> m TTerm -- es como si fuera un fmap loco
+applyInside m (Lam x0 s ty sc) = Lam x0 s ty <$> (close s <$> m (open s sc))
+applyInside m (App x0 tm tm') = App x0 <$> m tm <*> m tm'
+applyInside m (Print x0 s tm) = Print x0 s <$> m tm
+applyInside m (BinaryOp x0 bo tm tm') = BinaryOp x0 bo <$> m tm <*> m tm'
+applyInside m (Fix x0 s ty str ty' sc) = Fix x0 s ty str ty' <$> (close2 s str <$> m (open2 s str sc))
+applyInside m (IfZ x0 tm tm' tm2) = IfZ x0 <$> m tm <*> m tm' <*> m tm2
+applyInside m (Let x0 s ty tm sc) = Let x0 s ty <$> m tm <*> (close s <$> m (open s sc))
+applyInside m x = return x
 
--- constantFolding :: MonadFD4 m => TTerm -> m TTerm
--- constantFolding b@(V (p, _) (Global n)) = do
---   t <- lookupDecl n
---   case t of
---     Nothing -> failPosFD4 p "Global no encontrado"
---     Just a@(Const _ (CNat x)) -> return a
---     Just _ -> return b
--- constantFolding (BinaryOp p s t t') = do
---   tLeft <- constantFolding t
---   tRight <- constantFolding t'
---   case (s, tLeft, tRight) of
---     (_, x, Const _ (CNat 0)) -> return x
---     (Add, Const _ (CNat 0), x) -> return x
---     (Sub, Const _ (CNat 0), x)
---       | noEffects x -> return (Const p (CNat 0))
---     (_, Const _ (CNat x), Const _ (CNat y)) -> return $ Const p (CNat $ semOp s x y)
---     _ -> return $ BinaryOp p s tLeft tRight
--- constantFolding (Lam a b c (Sc1 t)) = Lam a b c <$> (Sc1 <$> constantFolding t)
--- constantFolding (App a t t') = App a <$> constantFolding t <*> constantFolding t'
--- constantFolding (Print a b t) = Print a b <$> constantFolding t
--- constantFolding (Fix a b c d e (Sc2 t)) = Fix a b c d e <$> (Sc2 <$> constantFolding t)
--- constantFolding (IfZ a t t' t'') = do
---   tCond <- constantFolding t
---   case tCond of
---     (Const _ (CNat 0)) -> constantFolding t'
---     (Const _ (CNat x)) -> constantFolding t''
---     _ -> IfZ a tCond <$> constantFolding t' <*> constantFolding t''
--- constantFolding (Let a b c t body@(Sc1 t')) = do
---   tDef <- constantFolding t
---   case tDef of
---     Const p (CNat n) -> constantFolding $ subst' tDef body
---     _ -> Let a b c tDef <$> (Sc1 <$> constantFolding t')
--- constantFolding t = return t
+topDown :: MonadFD4 m => (TTerm -> m TTerm) -> TTerm -> m TTerm
+topDown f = f >=> applyInside (topDown f)
+
+bottomUp :: MonadFD4 m => (TTerm -> m TTerm) -> TTerm -> m TTerm
+bottomUp f = applyInside (bottomUp f) >=> f
 
 noEffects :: TTerm -> Bool
 noEffects (V x0 (Bound n)) = True
