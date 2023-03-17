@@ -37,6 +37,7 @@ name n = pretty $ "fd4_" ++ escape n    --prefijo fd4 para evitar colision con n
 
 -- Convierte nombres con caracteres no válidos en C (como la comilla simple)
 -- a nombres válidos.
+escape :: [Char] -> [Char]
 escape = concatMap e1 where
   e1 :: Char -> String
   e1 c | c == '_'  = "__"

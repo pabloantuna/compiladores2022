@@ -28,7 +28,6 @@ import Eval (semOp)
 import Subst (close, varChanger)
 import Data.Bits (shiftR, Bits (..), (.&.))
 import Data.List.Extra (takeEnd)
-import System.IO
 
 type Opcode = Word8
 type Bytecode = [Word8]

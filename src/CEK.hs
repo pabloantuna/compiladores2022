@@ -6,10 +6,13 @@ import Subst
 import Eval (semOp)
 
 type Env = [Val]
+
 data Clos = ClosFun (Pos, Ty) Env Name Ty TTerm | ClosFix (Pos, Ty) Env Name Ty Name Ty TTerm
-  deriving (Show)
+  deriving Show
+
 data Val = N (Pos, Ty) Const | Closure Clos
   deriving Show
+
 data Frame
   = Fun {env :: Env, arg :: TTerm}
   | Arg {fun :: Clos}
@@ -18,6 +21,7 @@ data Frame
   | BinOpSnd {binOp :: BinaryOp, binOpFst :: Val}
   | PrintFr {printString :: String}
   | LetDef {env :: Env, letBody :: TTerm}
+
 type Kont = [Frame]
 
 search :: MonadFD4 m => TTerm -> Env -> Kont -> m Val
@@ -52,6 +56,7 @@ destroy (N i (CNat n')) ((BinOpSnd bo (N _ (CNat n))) : k) = destroy (N i $ CNat
 destroy (N _ (CNat n)) ((BinOpSnd bo (Closure cl)) : k) = failFD4 "Operación binaria cuyo primer argumento es una función"
 destroy (Closure cl) ((BinOpSnd bo val) : frs) = failFD4 "Operación binaria cuyo segundo argumento es una función"
 destroy c@(N _ (CNat n)) ((PrintFr s) : k) = printFD4 (s ++ show n) >> destroy c k
+destroy c ((PrintFr s) : k) = failFD4 (show c ++ " debe ser un natural")
 destroy c ((LetDef vals body) : k) = search body (c : vals) k
 
 toTTerm :: Val -> TTerm
