@@ -1,0 +1,6 @@
+let x  : Nat = let y  : Nat = print "Hola" 11 in 23
+let z  : Nat = print x
+let r  : Nat = 4
+let k  : Nat = 4
+let rr  : Nat = print "r" 4
+let kk  : Nat = print "k" 4

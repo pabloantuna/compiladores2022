@@ -1,2 +1,1 @@
-Chequeando tipos de tests/ok/00-basicos/000-basico.fd4
-[0;35;3mlet[0m x  : [0;94;3mNat[0m [0;32m=[0m [0;91m123[0m
+let x  : Nat = 123

@@ -1,6 +1,7 @@
 TESTDIRS += tests/ok/00-basicos
 TESTDIRS += tests/ok/10-sugar
 TESTDIRS += tests/ok/20-tysym
+TESTDIRS += tests/ok/30-opt
 
 TESTS	:= $(shell find $(TESTDIRS) -name '*.fd4' -type f | sort)
 
@@ -12,7 +13,7 @@ TESTS	:= $(shell find $(TESTDIRS) -name '*.fd4' -type f | sort)
 EXE	:= $(shell stack exec whereis compiladores-exe | awk '{print $$2}')
 VM	:= ./vm/macc
 
-EXTRAFLAGS	:=
+EXTRAFLAGS	:= --noColors --optimize
 # EXTRAFLAGS	+= --optimize
 
 # Las reglas a chequear. Se puede deshabilitar toda una familia de tests
@@ -23,6 +24,7 @@ CHECK	+= $(patsubst %,%.check_bc_h,$(TESTS))
 CHECK	+= $(patsubst %,%.check_bc,$(TESTS))
 CHECK	+= $(patsubst %,%.check_eval_opt,$(TESTS))
 CHECK	+= $(patsubst %,%.check_opt,$(TESTS))
+CHECK	+= $(patsubst %,%.check_c,$(TESTS))
 
 # Ejemplo: así se puede apagar un test en particular.
 # CHECK	:= $(filter-out tests/correctos/grande.fd4.check_bc,$(CHECK))
@@ -129,14 +131,33 @@ accept: $(patsubst %,%.accept_opt,$(TESTS))
 	$(Q)touch $@
 	@echo "OK	EVALOPT	$(patsubst %.out,%,$<)"
 
+# C. 
+%.c: %.fd4 $(EXE)
+	$(Q)$(EXE) $(EXTRAFLAGS) --cc $< >/dev/null
+
+%.exe: %.c
+	$(Q)$(CC) $< runtime.c -lgc -o $@
+
+# Correr c para generar la salida
+# Finalmente la comparación.
+%.fd4.actual_out_c: %.exe
+	$(Q)./$< > $@
+
+%.check_c: %.out %.actual_out_c
+	$(Q)diff -u $^
+	$(Q)touch $@
+	@echo "OK	CC	$(patsubst %.out,%,$<)"
+
 # Estas directivas indican que NO se borren los archivos intermedios,
 # así podemos examinarlos, particularmente cuando algo no anda.
 .SECONDARY: $(patsubst %,%.actual_out_eval,$(TESTS))
 .SECONDARY: $(patsubst %,%.actual_out_cek,$(TESTS))
 .SECONDARY: $(patsubst %,%.actual_out_bc,$(TESTS))
 .SECONDARY: $(patsubst %,%.actual_out_bc_h,$(TESTS))
+.SECONDARY: $(patsubst %,%.actual_out_c,$(TESTS))
 .SECONDARY: $(patsubst %,%.actual_out_eval_opt,$(TESTS))
 .SECONDARY: $(patsubst %,%.actual_opt_out,$(TESTS))
 .SECONDARY: $(patsubst %.fd4,%.bc,$(TESTS))
+.SECONDARY: $(patsubst %.fd4,%.c,$(TESTS))
 
 .PHONY: test_all accept

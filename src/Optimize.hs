@@ -17,7 +17,7 @@ inline a@(App {}) = do
 inline t = return t
 
 shouldInline :: TTerm -> Bool
-shouldInline (Let _ _ _ def body) = noEffects def && termSize def < 10
+shouldInline (Let _ _ _ def body) = noEffects def && termSize def < 60 -- este numero hacia que ande bien tests/ok/30-opt/incs_fun.fd4
 shouldInline t = False
 
 -- | La info del App y lo que se le estaba aplicando a la funcion
@@ -42,6 +42,7 @@ applyBodyArgs (t, [], []) = t
 applyBodyArgs (t, apps, args)
  | length args > length apps = Lam x1 s ty (close s (applyBodyArgs (t, apps, restArgs)))
  | length args < length apps = App x0 (applyBodyArgs (t, restApps, args)) t'
+ | noEffects t' = applyBodyArgs (subst t' (close s t), restApps, restArgs)
  | otherwise = case t' of
     V _ (Bound _) -> applyBodyArgs (subst t' (close s t), restApps, restArgs)
     V _ (Free _) -> applyBodyArgs (subst t' (close s t), restApps, restArgs)
@@ -59,7 +60,7 @@ termSize (Lam x0 s ty (Sc1 t)) = 1 + termSize t
 termSize (App x0 t t') = 1 + termSize t + termSize t'
 termSize (Print x0 s t) = 1 + termSize t
 termSize (BinaryOp x0 bo t t') = 1 + termSize t + termSize t'
-termSize (Fix x0 s ty str ty' (Sc2 t)) = 1 + termSize t -- Me dan miedo los fix así que voy a hacer que cuenten como que son mas grandes
+termSize (Fix x0 s ty str ty' (Sc2 t)) = 1 + termSize t
 termSize (IfZ x0 t t' t'') = 1 + termSize t + termSize t' + termSize t''
 termSize (Let x0 s ty t (Sc1 t')) = 1 + termSize t + termSize t'
 

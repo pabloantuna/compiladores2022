@@ -63,3 +63,9 @@ toTTerm :: Val -> TTerm
 toTTerm (N info c) = Const info c
 toTTerm (Closure (ClosFun info vals s sty tm)) = substN (map toTTerm vals) $ Lam info s sty (Sc1 tm)
 toTTerm (Closure (ClosFix info vals f fty x xty tm)) = substN (map toTTerm vals) $ Fix info f fty x xty (Sc2 tm)
+
+-- let x = v in t -> t[v/x]
+-- 
+--                t ---s--> t'
+-- ------------------------------------
+--  let x = t in t2 ---s--> let x = t' in t2

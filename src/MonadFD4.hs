@@ -29,6 +29,7 @@ module MonadFD4 (
   getInter,
   getMode,
   getOpt,
+  getNoColors,
   eraseLastFileDecls,
   failPosFD4,
   failFD4,
@@ -70,6 +71,9 @@ class (MonadIO m, MonadState GlEnv m, MonadError Error m, MonadReader Conf m) =>
 
 getOpt :: MonadFD4 m => m Bool
 getOpt = asks opt
+
+getNoColors :: MonadFD4 m => m Bool
+getNoColors = asks noColors
 
 getMode :: MonadFD4 m => m Mode
 getMode = asks modo

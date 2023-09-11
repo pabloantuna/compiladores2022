@@ -33,9 +33,10 @@ import Prettyprinter
       nest,
       sep,
       parens,
+      unAnnotate,
       Doc,
       Pretty(pretty) )
-import MonadFD4 ( gets, MonadFD4, failPosFD4 )
+import MonadFD4 ( gets, MonadFD4, failPosFD4, getNoColors )
 import Global ( GlEnv(glb) )
 import Common (Pos)
 import Data.List (delete, groupBy)
@@ -237,7 +238,8 @@ pp :: MonadFD4 m => TTerm -> m String
 {- pp = show -}
 pp t = do
        gdecl <- gets glb
-       return (render . t2doc False $ resugar $ openAll fst (map declName gdecl) t)
+       noColors <- getNoColors
+       return (render . (if noColors then unAnnotate else id) . t2doc False $ resugar $ openAll fst (map declName gdecl) t)
 
 render :: Doc AnsiStyle -> String
 render = unpack . renderStrict . layoutSmart defaultLayoutOptions
@@ -246,8 +248,9 @@ render = unpack . renderStrict . layoutSmart defaultLayoutOptions
 ppDecl :: MonadFD4 m => Decl TTerm -> m String
 ppDecl (Decl p x ty t) = do
   gdecl <- gets glb
+  noColors <- getNoColors
   let (LetDecl p' isR ((x', ty'):args) def) = deElabDecl $ Decl p x ty (resugar $ openAll fst (delete x $ map declName gdecl) t) -- No tomamos como declarada a la misma decl que estamos printeando
-  return (render $ sep ([defColor (pretty "let")]
+  return ((render . (if noColors then unAnnotate else id)) $ sep ([defColor (pretty "let")]
                   ++ [defColor (pretty "rec") | isR]
                   ++ [name2doc x']
                   ++ [multibindings2doc args]

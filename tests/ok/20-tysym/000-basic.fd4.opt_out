@@ -1,4 +1,2 @@
-Chequeando tipos de tests/ok/20-tysym/000-basic.fd4
 [0;35;3mtype[0m Mynat [0;32m=[0m [0;94;3mNat[0m
-Chequeando tipos de tests/ok/20-tysym/000-basic.fd4
-[0;35;3mlet[0m x  : [0;94;3mMynat[0m [0;32m=[0m [0;91m20[0m
+let x  : Mynat = 20

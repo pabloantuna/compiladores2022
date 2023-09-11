@@ -48,8 +48,8 @@ prompt = "FD4> "
 
 
 -- | Parser de banderas
-parseMode :: Parser (Mode,Bool)
-parseMode = (,) <$>
+parseMode :: Parser (Mode, Bool, Bool)
+parseMode = (, ,) <$>
       (flag' Typecheck ( long "typecheck" <> short 't' <> help "Chequear tipos e imprimir el término")
       <|> flag' InteractiveCEK (long "interactiveCEK" <> short 'k' <> help "Ejecutar interactivamente en la CEK")
       <|> flag' Bytecompile (long "bytecompile" <> short 'm' <> help "Compilar a la BVM")
@@ -64,10 +64,11 @@ parseMode = (,) <$>
       )
    -- reemplazar por la siguiente línea para habilitar opción
    <*> flag False True (long "optimize" <> short 'o' <> help "Optimizar código")
+   <*> flag False True (long "noColors" <> short 'n' <> help "No usar colores durante pretty-printing")
 
 -- | Parser de opciones general, consiste de un modo y una lista de archivos a procesar
-parseArgs :: Parser (Mode,Bool, [FilePath])
-parseArgs = (\(a,b) c -> (a,b,c)) <$> parseMode <*> many (argument str (metavar "FILES..."))
+parseArgs :: Parser (Mode, Bool, Bool, [FilePath])
+parseArgs = (\(a,b,c) d -> (a,b,c,d)) <$> parseMode <*> many (argument str (metavar "FILES..."))
 
 main :: IO ()
 main = execParser opts >>= go
@@ -77,15 +78,15 @@ main = execParser opts >>= go
      <> progDesc "Compilador de FD4"
      <> header "Compilador de FD4 de la materia Compiladores 2022" )
 
-    go :: (Mode,Bool,[FilePath]) -> IO ()
-    go (InteractiveCEK,opt,files) =
-              runOrFail (Conf opt InteractiveCEK) (runInputT defaultSettings (repl files))
-    go (Interactive,opt,files) =
-              runOrFail (Conf opt Interactive) (runInputT defaultSettings (repl files))
-    go (RunVM, opt, files) =
-              runOrFail (Conf opt RunVM) $ mapM_ runBytecodeFromFile files 
-    go (m,opt, files) =
-              runOrFail (Conf opt m) $ mapM_ compileFile files
+    go :: (Mode, Bool, Bool, [FilePath]) -> IO ()
+    go (InteractiveCEK, opt, noColors, files) =
+              runOrFail (Conf opt noColors InteractiveCEK) (runInputT defaultSettings (repl files))
+    go (Interactive, opt, noColors, files) =
+              runOrFail (Conf opt noColors Interactive) (runInputT defaultSettings (repl files))
+    go (RunVM, opt, noColors, files) =
+              runOrFail (Conf opt noColors RunVM) $ mapM_ runBytecodeFromFile files 
+    go (m, opt, noColors, files) =
+              runOrFail (Conf opt noColors m) $ mapM_ compileFile files
 
 runBytecodeFromFile :: MonadFD4 m => FilePath -> m ()
 runBytecodeFromFile f = do
@@ -177,7 +178,6 @@ handleDecl d = do
           Interactive -> handleAdd eval d
           Typecheck -> do
               f <- getLastFile
-              printFD4 ("Chequeando tipos de "++f)
               case d of
                 LetDecl {} -> do
                   elabbed <- elabDecl d

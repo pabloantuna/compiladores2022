@@ -1,4 +1,2 @@
-Chequeando tipos de tests/ok/00-basicos/300-fun.fd4
-[0;35;3mlet[0m f (x : [0;94;3mNat[0m) : [0;94;3mNat[0m [0;32m=[0m x [0;32m+[0m [0;91m1[0m
-Chequeando tipos de tests/ok/00-basicos/300-fun.fd4
-[0;35;3mlet[0m res  : [0;94;3mNat[0m [0;32m=[0m [0;32mprint[0m "res = " (f [0;91m100[0m)
+let f (x : Nat) : Nat = x + 1
+let res  : Nat = print "res = " (f 100)
