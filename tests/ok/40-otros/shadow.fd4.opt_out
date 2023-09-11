@@ -1,0 +1,2 @@
+let f (x : Nat) : Nat = x + 3
+let _  : Nat = print (f 17)

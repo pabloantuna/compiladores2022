@@ -259,5 +259,5 @@ ppDecl (Decl p x ty t) = do
                    <+> nest 2 (t2doc False def))
 
 ppTypeSyn :: MonadFD4 m => SDecl -> m String
-ppTypeSyn (TypeDecl pos s st) = return $ render $ sep [defColor (pretty "type"), name2doc s, opColor (pretty "="), ty2doc st]
+ppTypeSyn (TypeDecl pos s st) = getNoColors >>= (\x -> return $ (render . (if x then unAnnotate else id)) $ sep [defColor (pretty "type"), name2doc s, opColor (pretty "="), ty2doc st])
 ppTypeSyn (LetDecl pos b x0 st) = failPosFD4 pos "Se llamó a ppTypeSyn con una LetDecl"

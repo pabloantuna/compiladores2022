@@ -2,6 +2,7 @@ TESTDIRS += tests/ok/00-basicos
 TESTDIRS += tests/ok/10-sugar
 TESTDIRS += tests/ok/20-tysym
 TESTDIRS += tests/ok/30-opt
+TESTDIRS += tests/ok/40-otros
 
 TESTS	:= $(shell find $(TESTDIRS) -name '*.fd4' -type f | sort)
 
@@ -13,7 +14,7 @@ TESTS	:= $(shell find $(TESTDIRS) -name '*.fd4' -type f | sort)
 EXE	:= $(shell stack exec whereis compiladores-exe | awk '{print $$2}')
 VM	:= ./vm/macc
 
-EXTRAFLAGS	:= --noColors --optimize
+EXTRAFLAGS	:= --noColors
 # EXTRAFLAGS	+= --optimize
 
 # Las reglas a chequear. Se puede deshabilitar toda una familia de tests
@@ -133,7 +134,7 @@ accept: $(patsubst %,%.accept_opt,$(TESTS))
 
 # C. 
 %.c: %.fd4 $(EXE)
-	$(Q)$(EXE) $(EXTRAFLAGS) --cc $< >/dev/null
+	$(Q)$(EXE) $(EXTRAFLAGS) --cc --optimize $< >/dev/null
 
 %.exe: %.c
 	$(Q)$(CC) $< runtime.c -lgc -o $@

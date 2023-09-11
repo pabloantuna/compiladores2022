@@ -1,2 +1,2 @@
-[0;35;3mtype[0m Mynat [0;32m=[0m [0;94;3mNat[0m
+type Mynat = Nat
 let x  : Mynat = 20

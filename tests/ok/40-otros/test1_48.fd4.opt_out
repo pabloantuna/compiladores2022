@@ -1,0 +1,14 @@
+let pred (x : Nat) : Nat = x - 1
+let rec mult (m n : Nat) : Nat = ifz
+  m
+  then
+  0
+  else
+  ifz n then 0 else ifz pred n then m else m + (mult m (pred n))
+let b  : Nat = 10
+let d  : Nat = 0
+let e  : Nat = 0
+let c  : Nat = 5
+let g (k l m : Nat) : Nat = (k + (l + (m + (mult 4 5)))) + 15
+let f (x y : Nat) : Nat = g (x + 1) y 5
+let a  : Nat = print (f 3 4)

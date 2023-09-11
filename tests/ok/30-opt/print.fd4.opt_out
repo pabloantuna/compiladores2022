@@ -1,5 +1,0 @@
-let test (x : Nat) : Nat = let _  : Nat =
-  print "res = " (((x + x) + x) + x)
-  in
-  ((x + x) + x) + x
-let x  : Nat = test 999

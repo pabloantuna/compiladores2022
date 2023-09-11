@@ -1,0 +1,6 @@
+let x  : Nat = print "Def x = " 1
+let y  : Nat = print "Def y = " (x + 2)
+let f (y0 : Nat) : Nat = x + 1
+let suma (x0 y0 : Nat) : Nat = x0 + y0
+let suma5  : Nat -> Nat = suma 5
+let res  : Nat = print "Resultado es " (suma5 2)
