@@ -1,0 +1,2 @@
+let inc10 (x : Nat) : Nat = x + 10
+let _  : Nat = print "res = " (inc10 100)

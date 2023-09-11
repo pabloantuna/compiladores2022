@@ -1,0 +1,5 @@
+let test1 (x : Nat) : Nat = x + 2
+let test2 (x : Nat) : Nat = (x + x) + 3
+let test3 (x y : Nat) : Nat = (x + y) + 3
+let test4 (x y : Nat) : Nat = (x + y) + 3
+let test5 (x y : Nat) : Nat = (x + y) + 3

@@ -42,6 +42,7 @@ data Mode =
   -- | Build
 data Conf = Conf {
     opt :: Bool,          --  ^ True, si estan habilitadas las optimizaciones.
+    noColors :: Bool,     --  ^ True, si estan deshabilitados los colores en el pretty printer
     modo :: Mode
 }
 

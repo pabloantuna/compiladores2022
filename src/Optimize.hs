@@ -17,7 +17,7 @@ inline a@(App {}) = do
 inline t = return t
 
 shouldInline :: TTerm -> Bool
-shouldInline (Let _ _ _ def body) = noEffects def && termSize def < 10
+shouldInline (Let _ _ _ def body) = noEffects def && termSize def < 60 -- este numero hacia que ande bien tests/ok/30-opt/incs_fun.fd4
 shouldInline t = False
 
 -- | La info del App y lo que se le estaba aplicando a la funcion
@@ -42,16 +42,13 @@ applyBodyArgs (t, [], []) = t
 applyBodyArgs (t, apps, args)
  | length args > length apps = Lam x1 s ty (close s (applyBodyArgs (t, apps, restArgs)))
  | length args < length apps = App x0 (applyBodyArgs (t, restApps, args)) t'
- | otherwise = case t' of
-    V _ (Bound _) -> applyBodyArgs (subst t' (close s t), restApps, restArgs)
-    V _ (Free _) -> applyBodyArgs (subst t' (close s t), restApps, restArgs)
-    Const _ _ -> applyBodyArgs (subst t' (close s t), restApps, restArgs)
-    _ -> applyBodyArgs (Let x1 s ty t' (close s t), restApps, restArgs)
+ | noEffects t' = applyBodyArgs (subst t' (close s t), restApps, restArgs)
+ | otherwise = applyBodyArgs (Let x1 s ty t' (close s t), restApps, restArgs)
    where
     ((x0, t'):restApps) = apps
     ((x1, s, ty):restArgs) = args
-    
-  
+
+
 termSize :: TTerm -> Int
 termSize (V x0 var) = 1
 termSize (Const x0 co) = 1
@@ -59,7 +56,7 @@ termSize (Lam x0 s ty (Sc1 t)) = 1 + termSize t
 termSize (App x0 t t') = 1 + termSize t + termSize t'
 termSize (Print x0 s t) = 1 + termSize t
 termSize (BinaryOp x0 bo t t') = 1 + termSize t + termSize t'
-termSize (Fix x0 s ty str ty' (Sc2 t)) = 1 + termSize t -- Me dan miedo los fix así que voy a hacer que cuenten como que son mas grandes
+termSize (Fix x0 s ty str ty' (Sc2 t)) = 1 + termSize t
 termSize (IfZ x0 t t' t'') = 1 + termSize t + termSize t' + termSize t''
 termSize (Let x0 s ty t (Sc1 t')) = 1 + termSize t + termSize t'
 
@@ -71,20 +68,26 @@ consFold b@(V (p, _) (Global n)) = do
     Nothing -> failPosFD4 p "Global no encontrado"
     Just a@(Const _ (CNat x)) -> return a
     Just _ -> return b
-consFold (BinaryOp x0 Add (BinaryOp _ Add t (Const x1 (CNat y))) (Const _ (CNat z))) = return $ BinaryOp x0 Add t (Const x1 (CNat $ y + z)) -- (x + y) + z = x + (y + z) nos deja foldear mas constantes
-consFold (BinaryOp x0 Sub (BinaryOp _ Sub t (Const x1 (CNat y))) (Const _ (CNat z))) = return $ BinaryOp x0 Sub t (Const x1 (CNat $ y + z)) -- (x - y) - z = x - (y + z) nos deja foldear mas constantes
+consFold (BinaryOp x0 Add (BinaryOp x1 Add t t') t'') = do -- (x + y) + z = x + (y + z) nos deja foldear mas constantes
+  tt <- consFold (BinaryOp x1 Add t' t'') 
+  consFold $ BinaryOp x0 Add t tt
+consFold (BinaryOp x0 Sub (BinaryOp x1 Sub t t') t'') = do -- (x - y) - z = x - (y + z) nos deja foldear mas constantes
+  tt <-  consFold (BinaryOp x1 Add t' t'') 
+  consFold $ BinaryOp x0 Sub t tt
 consFold (BinaryOp x0 Sub (BinaryOp _ Add t (Const x1 (CNat y))) (Const _ (CNat z)))
- | y < z = return $ BinaryOp x0 Sub t (Const x1 (CNat $ z - y)) -- (x + y) - z = x - (z - y) cuando y < z
- | otherwise = return $ BinaryOp x0 Add t (Const x1 (CNat $ y - z)) -- (x + y) - z = x + (y - z) cuando z < y
+ | y < z = consFold $ BinaryOp x0 Sub t (Const x1 (CNat $ z - y)) -- (x + y) - z = x - (z - y) cuando y < z
+ | otherwise = consFold $ BinaryOp x0 Add t (Const x1 (CNat $ y - z)) -- (x + y) - z = x + (y - z) cuando z < y
 -- Notar que no se puede hacer nada (creo) cuando tenemos primero la resta y después la suma
 consFold (BinaryOp x0 bo t (Const _ (CNat 0))) = return t -- Caso x + 0 o x - 0
 consFold (BinaryOp x0 Add (Const _ (CNat 0)) t') = return t' -- Caso 0 + x
 consFold (BinaryOp x0 Sub c@(Const _ (CNat 0)) t) -- Caso 0 - x, que es siempre 0 porque solo hay numeros positivos
   | noEffects t = return c -- Si tiene efectos no se puede hacer
-consFold (BinaryOp x0 op (Const _ (CNat x)) (Const _ (CNat y))) = return $ Const x0 (CNat (semOp op x y))
+consFold (BinaryOp x0 op (Const _ (CNat x)) (Const _ (CNat y))) = return $ Const x0 (CNat (semOp op x y)) -- caso dos constantes (x+y) o (x-y)
 consFold (IfZ x0 (Const p (CNat 0)) t t') = return t -- Caso if con condicion 0 constante
 consFold (IfZ x0 (Const p (CNat _)) t t') = return t' -- Caso if con condicion >0 constante
 consFold (Let x0 s ty def@(Const _ _) body) = bottomUp consFold $ subst def body -- Let constante, sustituimos a manopla
+consFold (BinaryOp x0 Add t'@(Const _ (CNat _)) t) = consFold $ BinaryOp x0 Add t t'
+consFold (BinaryOp x0 Add t (BinaryOp x1 Add t' c@(Const _ _))) = return $ BinaryOp x0 Add (BinaryOp x1 Add t t') c
 consFold t = return t -- No hacemos nada xd
 
 applyInside :: MonadFD4 m => (TTerm -> m TTerm) -> TTerm -> m TTerm -- es como si fuera un fmap loco

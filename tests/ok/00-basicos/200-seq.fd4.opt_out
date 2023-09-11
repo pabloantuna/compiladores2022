@@ -1,19 +1,17 @@
-Chequeando tipos de tests/ok/00-basicos/200-seq.fd4
-[0;35;3mlet[0m f (n : [0;94;3mNat[0m) : [0;94;3mNat[0m [0;32m=[0m [0;32mlet[0m a  : [0;94;3mNat[0m [0;32m=[0m
-  [0;32mprint[0m "hola" [0;91m1[0m
-  [0;32min[0m
-  [0;32mlet[0m b  : [0;94;3mNat[0m [0;32m=[0m
-    [0;32mprint[0m "hola" [0;91m1[0m
-    [0;32min[0m
-    [0;32mlet[0m c  : [0;94;3mNat[0m [0;32m=[0m
-      [0;32mprint[0m "hola" [0;91m1[0m
-      [0;32min[0m
-      [0;32mlet[0m d  : [0;94;3mNat[0m [0;32m=[0m
-        [0;32mprint[0m "hola" [0;91m1[0m
-        [0;32min[0m
-        [0;32mlet[0m e  : [0;94;3mNat[0m [0;32m=[0m
-          [0;32mprint[0m "hola" [0;91m1[0m
-          [0;32min[0m
-          [0;32mlet[0m f  : [0;94;3mNat[0m [0;32m=[0m [0;32mprint[0m "hola" [0;91m1[0m [0;32min[0m [0;32mlet[0m g  : [0;94;3mNat[0m [0;32m=[0m [0;32mprint[0m "hola" [0;91m1[0m [0;32min[0m [0;91m21[0m
-Chequeando tipos de tests/ok/00-basicos/200-seq.fd4
-[0;35;3mlet[0m x  : [0;94;3mNat[0m [0;32m=[0m [0;32mprint[0m "res = " (f [0;91m100[0m)
+let f (n : Nat) : Nat = let a  : Nat =
+  print "hola" 1
+  in
+  let b  : Nat =
+    print "hola" 1
+    in
+    let c  : Nat =
+      print "hola" 1
+      in
+      let d  : Nat =
+        print "hola" 1
+        in
+        let e  : Nat =
+          print "hola" 1
+          in
+          let f  : Nat = print "hola" 1 in let g  : Nat = print "hola" 1 in 21
+let x  : Nat = print "res = " (f 100)

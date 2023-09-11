@@ -1,0 +1,4 @@
+let uno  : Nat = 1
+let dos  : Nat = 2
+let _  : Nat = print "uno=" 1
+let __  : Nat = print "dos=" 2
